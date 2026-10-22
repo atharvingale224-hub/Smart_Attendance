@@ -233,9 +233,15 @@ class _TeacherDashboardScreenState extends State<TeacherDashboardScreen> {
   List<dynamic> attendanceList = [];
   Timer? _rotationTimer;
 
+  List<dynamic> todaySlots = [];
+  Map<String, dynamic>? selectedSlot;
+  String currentSubjectName = "";
+  String currentRoom = "";
+
   @override
   void initState() {
     super.initState();
+    fetchTodayTimetable();
     fetchAttendanceReport();
   }
 
@@ -243,6 +249,27 @@ class _TeacherDashboardScreenState extends State<TeacherDashboardScreen> {
   void dispose() {
     _rotationTimer?.cancel();
     super.dispose();
+  }
+
+  Future<void> fetchTodayTimetable() async {
+    try {
+      final response = await http.get(
+        Uri.parse('${AppConfig.baseUrl}/api/timetable/today'),
+      ).timeout(const Duration(seconds: 10));
+
+      if (response.statusCode == 200) {
+        final data = jsonDecode(response.body);
+        final slots = data['slots'] as List<dynamic>? ?? [];
+        setState(() {
+          todaySlots = slots;
+          if (todaySlots.isNotEmpty) {
+            selectedSlot = todaySlots[0] as Map<String, dynamic>;
+          }
+        });
+      }
+    } catch (e) {
+      // ignore
+    }
   }
 
   Future<void> createSession() async {
@@ -256,9 +283,18 @@ class _TeacherDashboardScreenState extends State<TeacherDashboardScreen> {
         headers['Authorization'] = 'Bearer ${AppConfig.authToken}';
       }
 
+      final body = {
+        'slot_id': selectedSlot?['id'],
+        'subject_id': selectedSlot?['subject_id'],
+        'proximity_radius': 50.0,
+        'teacher_lat': 16.6631,
+        'teacher_lng': 74.2642
+      };
+
       final response = await http.post(
         Uri.parse('${AppConfig.baseUrl}/api/create-session'),
         headers: headers,
+        body: jsonEncode(body),
       ).timeout(const Duration(seconds: 10));
 
       if (response.statusCode == 200) {
@@ -268,9 +304,11 @@ class _TeacherDashboardScreenState extends State<TeacherDashboardScreen> {
           generatedUrl = data['url'];
           currentToken = data['token'] ?? '';
           secondsRemaining = data['valid_for_seconds'] ?? 80;
+          currentSubjectName = data['subject_name'] ?? '';
+          currentRoom = data['room'] ?? '';
           isSessionActive = true;
         });
-        showSnackBar('Attendance Session Started! Rotating QR is Live.');
+        showSnackBar('Attendance Session Started for $currentSubjectName!');
         startQRRotationPoll();
         fetchAttendanceReport();
       } else {
@@ -467,7 +505,59 @@ class _TeacherDashboardScreenState extends State<TeacherDashboardScreen> {
                         style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Colors.indigo),
                       ),
                       const SizedBox(height: 15),
-                      if (!isSessionActive)
+                      if (!isSessionActive) ...[
+                        if (todaySlots.isNotEmpty) ...[
+                          Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 4),
+                            decoration: BoxDecoration(
+                              color: Colors.indigo.shade50,
+                              borderRadius: BorderRadius.circular(10),
+                              border: Border.all(color: Colors.indigo.shade200),
+                            ),
+                            child: DropdownButtonHideUnderline(
+                              child: DropdownButton<String>(
+                                isExpanded: true,
+                                value: selectedSlot?['id'],
+                                hint: const Text("Select Scheduled Lecture"),
+                                items: todaySlots.map<DropdownMenuItem<String>>((slot) {
+                                  return DropdownMenuItem<String>(
+                                    value: slot['id'] as String,
+                                    child: Text(
+                                      "${slot['subject_name']} (${slot['start_time']} - ${slot['end_time']}) • ${slot['room'] ?? 'LH2'}",
+                                      style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 13),
+                                    ),
+                                  );
+                                }).toList(),
+                                onChanged: (val) {
+                                  setState(() {
+                                    selectedSlot = todaySlots.firstWhere((s) => s['id'] == val) as Map<String, dynamic>;
+                                  });
+                                },
+                              ),
+                            ),
+                          ),
+                          const SizedBox(height: 10),
+                        ],
+                        Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                          decoration: BoxDecoration(
+                            color: Colors.green.shade50,
+                            borderRadius: BorderRadius.circular(8),
+                            border: Border.all(color: Colors.green.shade200),
+                          ),
+                          child: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: const [
+                              Icon(Icons.location_on, size: 16, color: Colors.green),
+                              SizedBox(width: 4),
+                              Text(
+                                "Classroom Proximity: 50m radius around phone",
+                                style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: Colors.green),
+                              ),
+                            ],
+                          ),
+                        ),
+                        const SizedBox(height: 15),
                         ElevatedButton.icon(
                           style: ElevatedButton.styleFrom(
                             backgroundColor: Colors.indigo,
@@ -477,11 +567,24 @@ class _TeacherDashboardScreenState extends State<TeacherDashboardScreen> {
                           onPressed: isLoading ? null : createSession,
                           icon: const Icon(Icons.play_arrow_rounded, color: Colors.white, size: 22),
                           label: Text(
-                            isLoading ? 'Starting Session...' : 'Start 80s Dynamic QR Session',
-                            style: const TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.bold),
+                            isLoading ? 'Starting Session...' : 'Start 80s QR for ${selectedSlot?['subject_name'] ?? 'Lecture'}',
+                            style: const TextStyle(color: Colors.white, fontSize: 15, fontWeight: FontWeight.bold),
                           ),
-                        )
-                      else ...[
+                        ),
+                      ] else ...[
+                        Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+                          margin: const EdgeInsets.only(bottom: 14),
+                          decoration: BoxDecoration(
+                            color: Colors.indigo.shade50,
+                            borderRadius: BorderRadius.circular(8),
+                            border: Border.all(color: Colors.indigo.shade200),
+                          ),
+                          child: Text(
+                            "Active Lecture: $currentSubjectName (Room: $currentRoom)",
+                            style: const TextStyle(fontWeight: FontWeight.bold, color: Colors.indigo),
+                          ),
+                        ),
                         Row(
                           mainAxisAlignment: MainAxisAlignment.center,
                           children: [

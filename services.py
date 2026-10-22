@@ -188,37 +188,60 @@ class AttendanceService:
         college = db.session.get(College, session.college_id)
         geofence = college.geofence if college else None
         
-        if not geofence:
-            # Fallback default geofence if not configured yet
-            geofence = GeofenceConfig(
-                college_id=session.college_id,
-                latitude=16.6800,
-                longitude=74.2300,
-                radius_meters=150.0,
-                max_accuracy_meters=50.0
+        # Classroom Teacher Proximity Geofencing (Strictly 50-meter radius around teacher's phone)
+        allowed_radius = session.proximity_radius_meters or 50.0
+        if session.teacher_lat is not None and session.teacher_lng is not None:
+            distance = GeoService.calculate_distance(
+                session.teacher_lat,
+                session.teacher_lng,
+                latitude,
+                longitude
             )
-
-        geo_valid, distance, geo_msg = GeoService.validate_location(
-            geofence, 
-            latitude, 
-            longitude, 
-            accuracy
-        )
-
-        if not geo_valid:
-            risk_entry = ProxyRiskLog(
-                college_id=session.college_id,
-                session_id=session.id,
-                student_id=student.id,
-                prn=prn,
-                risk_type='OUT_OF_BOUNDS',
-                details=f"Geofence violation: {geo_msg} (Lat: {latitude}, Lng: {longitude}, Acc: {accuracy}m)",
-                ip_address=ip_address,
-                user_agent=user_agent
+            if distance > allowed_radius:
+                geo_msg = f"Outside classroom boundary! Distance from teacher's phone is {round(distance, 1)}m (Allowed: within {int(allowed_radius)}m)."
+                risk_entry = ProxyRiskLog(
+                    college_id=session.college_id,
+                    session_id=session.id,
+                    student_id=student.id,
+                    prn=prn,
+                    risk_type='OUT_OF_BOUNDS',
+                    details=f"Classroom proximity violation: {geo_msg}",
+                    ip_address=ip_address,
+                    user_agent=user_agent
+                )
+                db.session.add(risk_entry)
+                db.session.commit()
+                return {'status': 'failed', 'message': geo_msg, 'distance_meters': round(distance, 1)}, 400
+        else:
+            # Fallback to campus geofence if teacher GPS was unavailable
+            if not geofence:
+                geofence = GeofenceConfig(
+                    college_id=session.college_id,
+                    latitude=16.6631,
+                    longitude=74.2642,
+                    radius_meters=50.0,
+                    max_accuracy_meters=50.0
+                )
+            geo_valid, distance, geo_msg = GeoService.validate_location(
+                geofence, 
+                latitude, 
+                longitude, 
+                accuracy
             )
-            db.session.add(risk_entry)
-            db.session.commit()
-            return {'status': 'failed', 'message': geo_msg}, 400
+            if not geo_valid:
+                risk_entry = ProxyRiskLog(
+                    college_id=session.college_id,
+                    session_id=session.id,
+                    student_id=student.id,
+                    prn=prn,
+                    risk_type='OUT_OF_BOUNDS',
+                    details=f"Geofence violation: {geo_msg}",
+                    ip_address=ip_address,
+                    user_agent=user_agent
+                )
+                db.session.add(risk_entry)
+                db.session.commit()
+                return {'status': 'failed', 'message': geo_msg}, 400
 
         # Duplicate Attendance Check
         existing_record = AttendanceRecord.query.filter_by(
@@ -259,6 +282,13 @@ class AttendanceService:
             return {
                 'status': 'success',
                 'message': f'Attendance successfully marked for {student.user.full_name} (PRN: {prn})!',
+                'subject_name': session.subject.name if session.subject else 'Class Lecture',
+                'subject_code': session.subject.code if session.subject else '',
+                'teacher_name': session.teacher.user.full_name if session.teacher and session.teacher.user else 'Faculty',
+                'room': session.timetable_slot.room if session.timetable_slot and session.timetable_slot.room else 'Classroom',
+                'timestamp': record.timestamp.strftime('%d %b %Y, %I:%M %p'),
+                'distance_meters': round(distance, 1),
+                'allowed_radius_meters': int(allowed_radius),
                 'record': record.to_dict()
             }, 200
         except Exception as e:

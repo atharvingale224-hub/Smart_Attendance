@@ -426,7 +426,24 @@
                     const data = await response.json();
                     if (response.ok && data.status === 'success') {
                         statusDiv.className = "success";
-                        statusDiv.innerText = "✅ " + data.message;
+                        statusDiv.innerHTML = `
+                            <div style="font-weight: 800; font-size: 15px; margin-bottom: 6px;">✅ Attendance Marked Successfully!</div>
+                            <div style="background: white; border: 1.5px solid #10B981; border-radius: 10px; padding: 14px; text-align: left; margin-top: 10px; color: #1E293B;">
+                                <div style="display: flex; justify-content: space-between; align-items: center;">
+                                    <span style="font-weight: 800; font-size: 15px; color: #065F46;">📚 ${data.subject_name || 'Class Lecture'}</span>
+                                    <span style="font-size: 11px; background: #D1FAE5; color: #047857; padding: 2px 8px; border-radius: 6px; font-weight: 700;">${data.room || 'LH'}</span>
+                                </div>
+                                <div style="font-size: 12px; color: #047857; margin-top: 6px;">
+                                    👨‍🏫 Faculty: <b>${data.teacher_name || 'Professor'}</b>
+                                </div>
+                                <div style="font-size: 12px; color: #334155; margin-top: 4px;">
+                                    ⏰ Attended: <b>${data.timestamp}</b>
+                                </div>
+                                <div style="font-size: 11px; color: #047857; margin-top: 8px; background: #ECFDF5; border: 1px dashed #10B981; padding: 6px 10px; border-radius: 6px;">
+                                    📍 Proximity to Teacher: <b>${data.distance_meters}m</b> (Within 50m classroom boundary ✓)
+                                </div>
+                            </div>
+                        `;
                         btn.style.display = 'none';
                     } else {
                         statusDiv.className = "error";
@@ -497,13 +514,14 @@
                 if (!data.history.length) {
                     document.getElementById('historyContainer').innerHTML = "<p style='color:#6B7280; font-size:12px;'>No attendance records found.</p>";
                 } else {
-                    let histHtml = "<table><tr><th>Subject</th><th>Faculty</th><th>Timestamp</th><th>Status</th></tr>";
+                    let histHtml = "<table><tr><th>Subject & Code</th><th>Faculty</th><th>Attended At</th><th>Distance</th><th>Status</th></tr>";
                     data.history.forEach(h => {
                         histHtml += `<tr>
-                            <td><strong>${h.subject_name}</strong></td>
+                            <td><strong>${h.subject_name}</strong> <span style="font-size:11px; color:#6B7280;">(${h.subject_code || 'CS'})</span></td>
                             <td>${h.teacher_name}</td>
                             <td>${h.timestamp}</td>
-                            <td style="color:#059669; font-weight:600;">${h.status}</td>
+                            <td><span style="font-size:11px; background:#ECFDF5; color:#047857; padding:2px 6px; border-radius:4px; font-weight:700;">${h.distance_meters}m</span></td>
+                            <td style="color:#059669; font-weight:700;">✓ ${h.status}</td>
                         </tr>`;
                     });
                     histHtml += "</table>";

@@ -294,6 +294,11 @@ class LectureSession(db.Model):
     token_generated_at = db.Column(db.Float, nullable=False) # Unix epoch time
     token_sequence = db.Column(db.Integer, default=1)
 
+    # Dynamic Teacher Phone Proximity Geofencing (Classroom 50-meter radius)
+    teacher_lat = db.Column(db.Float, nullable=True) # Teacher's phone latitude at session creation
+    teacher_lng = db.Column(db.Float, nullable=True) # Teacher's phone longitude at session creation
+    proximity_radius_meters = db.Column(db.Float, default=50.0) # Strictly 50m radius around teacher
+
     attendance_records = db.relationship('AttendanceRecord', backref='session', cascade='all, delete-orphan')
     risk_logs = db.relationship('ProxyRiskLog', backref='session', cascade='all, delete-orphan')
 
@@ -314,6 +319,9 @@ class LectureSession(db.Model):
             'started_at': self.started_at.isoformat() if self.started_at else None,
             'closed_at': self.closed_at.isoformat() if self.closed_at else None,
             'token_sequence': self.token_sequence,
+            'teacher_lat': self.teacher_lat,
+            'teacher_lng': self.teacher_lng,
+            'proximity_radius_meters': self.proximity_radius_meters or 50.0,
             'attendance_count': len(self.attendance_records) if self.attendance_records else 0
         }
 

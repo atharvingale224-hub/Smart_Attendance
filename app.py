@@ -325,19 +325,62 @@ def create_session():
     if not teacher:
         return jsonify({'status': 'failed', 'message': 'No registered teacher found.'}), 400
 
-    # Class & Subject binding
-    ac_class = AcademicClass.query.filter_by(college_id=teacher.college_id).first()
-    subject = Subject.query.filter_by(college_id=teacher.college_id).first()
+    data = request.json or {}
+    slot_id = data.get('slot_id')
+    subject_id = data.get('subject_id')
+    slot = None
+
+    if slot_id:
+        slot = db.session.get(TimetableSlot, slot_id)
+        if slot:
+            ac_class = slot.academic_class
+            subject = slot.subject
+            teacher = slot.teacher
+    elif subject_id:
+        subject = db.session.get(Subject, subject_id)
+        ac_class = AcademicClass.query.filter_by(college_id=teacher.college_id).first()
+    else:
+        # Check current day of week from timetable for this teacher
+        now = datetime.now()
+        day_name = now.strftime('%A')
+        today_slot = TimetableSlot.query.filter_by(teacher_id=teacher.id, day_of_week=day_name).first()
+        if today_slot:
+            slot = today_slot
+            ac_class = slot.academic_class
+            subject = slot.subject
+        else:
+            ac_class = AcademicClass.query.filter_by(college_id=teacher.college_id).first()
+            subject = Subject.query.filter_by(college_id=teacher.college_id).first()
 
     if not ac_class or not subject:
         return jsonify({'status': 'failed', 'message': 'Class or subject configuration missing.'}), 400
 
+    # Classroom Teacher Phone GPS Proximity (50 meters)
+    teacher_lat = data.get('teacher_lat')
+    teacher_lng = data.get('teacher_lng')
+    try:
+        if teacher_lat is not None and teacher_lng is not None:
+            teacher_lat = float(teacher_lat)
+            teacher_lng = float(teacher_lng)
+        else:
+            teacher_lat = 16.6631
+            teacher_lng = 74.2642
+    except (ValueError, TypeError):
+        teacher_lat = 16.6631
+        teacher_lng = 74.2642
+
+    proximity_radius = float(data.get('proximity_radius', 50.0))
+
     token = QRTokenService.generate_token()
     session = LectureSession(
         college_id=teacher.college_id,
+        timetable_slot_id=slot.id if slot else None,
         teacher_id=teacher.id,
         class_id=ac_class.id,
         subject_id=subject.id,
+        teacher_lat=teacher_lat,
+        teacher_lng=teacher_lng,
+        proximity_radius_meters=proximity_radius,
         status='ACTIVE',
         started_at=datetime.utcnow(),
         current_token=token,
@@ -358,7 +401,12 @@ def create_session():
         'token': token,
         'valid_for_seconds': app.config['QR_EXPIRY_SECONDS'],
         'class_name': ac_class.name,
-        'subject_name': subject.name
+        'subject_name': subject.name,
+        'subject_code': subject.code,
+        'teacher_lat': teacher_lat,
+        'teacher_lng': teacher_lng,
+        'proximity_radius_meters': proximity_radius,
+        'room': slot.room if slot and slot.room else 'LH2'
     }), 200
 
 @app.route('/api/mark-attendance', methods=['POST'])
@@ -750,6 +798,27 @@ def get_weekly_timetable():
         'college_name': college.name if college else '',
         'timetable': grouped,
         'total_slots': len(slots)
+    }), 200
+
+@app.route('/api/timetable/today', methods=['GET'])
+def get_today_timetable():
+    """Returns today's scheduled lectures from timetable for quick teacher selection"""
+    now = datetime.now()
+    day_name = now.strftime('%A')
+    
+    college = College.query.filter_by(code='BVCOEK').first() or College.query.first()
+    college_id = college.id if college else None
+
+    slots = TimetableSlot.query.filter_by(college_id=college_id, day_of_week=day_name).order_by(TimetableSlot.start_time).all()
+    all_slots = TimetableSlot.query.filter_by(college_id=college_id).order_by(TimetableSlot.day_of_week, TimetableSlot.start_time).all()
+    
+    return jsonify({
+        'status': 'success',
+        'current_day': day_name,
+        'current_time': now.strftime('%H:%M'),
+        'today_slots': [s.to_dict() for s in slots],
+        'slots': [s.to_dict() for s in (slots if slots else all_slots)],
+        'all_slots': [s.to_dict() for s in all_slots]
     }), 200
 
 @app.route('/api/timetable/slot', methods=['POST'])
