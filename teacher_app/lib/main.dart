@@ -32,7 +32,7 @@ class TeacherApp extends StatelessWidget {
 
 // Global server configuration
 class AppConfig {
-  static String baseUrl = "http://127.0.0.1:5000";
+  static String baseUrl = "https://smart-attendance-rbsm.onrender.com";
   static String? authToken;
   static Map<String, dynamic>? currentUser;
 }
