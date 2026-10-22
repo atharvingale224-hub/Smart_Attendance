@@ -1,6 +1,5 @@
-import os
-from app import app, db
-from models import College, AcademicClass, Department, Subject, User, TeacherProfile, TimetableSlot
+from models import db, College, AcademicClass, Department, Subject, User, TeacherProfile, TimetableSlot
+from werkzeug.security import generate_password_hash
 
 COURSES = [
     ("AI", "Artificial Intelligence", "CS501", "Mr. K. P. Nilje", "nilje@bvcoek.edu.in"),
@@ -51,8 +50,13 @@ SCHEDULE_SLOTS = [
     ("Saturday", "12:05", "13:00", "AI", "LH3"),
 ]
 
+class _NullContext:
+    def __enter__(self): return self
+    def __exit__(self, *args): pass
+
 def run():
-    with app.app_context():
+    default_teacher_pw = generate_password_hash("Teacher@1234")
+    with _NullContext():
         college = College.query.filter_by(code='BVCOEK').first() or College.query.first()
         if not college:
             print("No college found. Run seed_77_students first.")
@@ -75,7 +79,7 @@ def run():
                     full_name=fac_name,
                     role="TEACHER"
                 )
-                user.set_password("Teacher@1234")
+                user.password_hash = default_teacher_pw
                 db.session.add(user)
                 db.session.flush()
 
@@ -141,4 +145,6 @@ def run():
         print(f"Courses: {len(COURSES)} subjects mapped to respective faculty.")
 
 if __name__ == '__main__':
-    run()
+    from app import app
+    with app.app_context():
+        run()

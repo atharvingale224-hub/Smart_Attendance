@@ -35,8 +35,8 @@ def seed_initial_data():
         try:
             if StudentProfile.query.count() < 70:
                 print("[SEED] Seeding 77 students into database...")
-                from seed_77_students import run as seed_run
-                seed_run()
+                import seed_77_students
+                seed_77_students.run()
         except Exception as e:
             print(f"Auto-seed 77 note: {e}")
 
@@ -44,10 +44,28 @@ def seed_initial_data():
         try:
             if TimetableSlot.query.count() < 10:
                 print("[SEED] Seeding Bharati Vidyapeeth weekly timetable...")
-                from seed_timetable import run as seed_tt_run
-                seed_tt_run()
+                import seed_timetable
+                seed_timetable.run()
         except Exception as e:
             print(f"Auto-seed timetable note: {e}")
+
+        # Ensure Admin account exists for Bharati Vidyapeeth
+        try:
+            admin_user = User.query.filter_by(email="admin@gcek.ac.in").first()
+            if not admin_user:
+                college = College.query.filter_by(code='BVCOEK').first() or College.query.first()
+                if college:
+                    admin_user = User(
+                        college_id=college.id,
+                        email="admin@gcek.ac.in",
+                        full_name="College Admin",
+                        role="COLLEGE_ADMIN"
+                    )
+                    admin_user.set_password("Admin@1234")
+                    db.session.add(admin_user)
+                    db.session.commit()
+        except Exception as e:
+            print(f"Auto-seed admin note: {e}")
 
         # Check if default college exists
         if not College.query.first():

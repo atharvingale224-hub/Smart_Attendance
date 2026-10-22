@@ -1,7 +1,5 @@
-import os
-import sys
-from app import app, db
-from models import College, GeofenceConfig, User, Department, AcademicClass, Subject, StudentProfile, TeacherProfile
+from werkzeug.security import generate_password_hash
+from models import db, College, GeofenceConfig, User, Department, AcademicClass, Subject, StudentProfile, TeacherProfile
 
 STUDENTS_DATA = [
     (1, "CSTYA1", "2024071601", "BAGWAN AARIZ SAMEER", "A1"),
@@ -83,8 +81,13 @@ STUDENTS_DATA = [
     (77, "CSTYA77", "2024071677", "KAMBLE AISHWARYA PRASHANT", "A4"),
 ]
 
+class _NullContext:
+    def __enter__(self): return self
+    def __exit__(self, *args): pass
+
 def run():
-    with app.app_context():
+    default_pw_hash = generate_password_hash("Pass@1234")
+    with _NullContext():
         # Find college or create
         colleges = College.query.all()
         if not colleges:
@@ -202,7 +205,7 @@ def run():
                     full_name=name,
                     role="STUDENT"
                 )
-                user.set_password(f"Pass@{prn}")
+                user.password_hash = default_pw_hash
                 db.session.add(user)
                 db.session.flush()
 
@@ -233,4 +236,6 @@ def run():
         print(f"Total students in class: {total}")
 
 if __name__ == '__main__':
-    run()
+    from app import app
+    with app.app_context():
+        run()
