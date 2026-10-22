@@ -70,7 +70,7 @@ class _AuthGateState extends State<AuthGate> {
           'email': _emailController.text.trim(),
           'password': _passwordController.text,
         }),
-      ).timeout(const Duration(seconds: 10));
+      ).timeout(const Duration(seconds: 60));
 
       final data = jsonDecode(response.body);
 
@@ -88,9 +88,13 @@ class _AuthGateState extends State<AuthGate> {
           _errorMessage = data['message'] ?? 'Login failed. Please check credentials.';
         });
       }
+    } on TimeoutException {
+      setState(() {
+        _errorMessage = 'Cloud server connection timed out while waking up from sleep.\nRender free tier services go to sleep when idle. Please tap "Log In to Faculty Console" again now that the server is waking up!';
+      });
     } catch (e) {
       setState(() {
-        _errorMessage = 'Connection error: Unable to reach backend server at ${AppConfig.baseUrl}';
+        _errorMessage = 'Connection error: Unable to reach backend server at ${AppConfig.baseUrl}. Please check internet connection or retry.';
       });
     } finally {
       if (mounted) {
@@ -190,13 +194,35 @@ class _AuthGateState extends State<AuthGate> {
                       ),
                       onPressed: _isLoading ? null : _login,
                       child: _isLoading
-                          ? const SizedBox(
-                              height: 20,
-                              width: 20,
-                              child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2),
+                          ? Padding(
+                              padding: const EdgeInsets.symmetric(vertical: 4),
+                              child: Row(
+                                mainAxisAlignment: MainAxisAlignment.center,
+                                children: const [
+                                  SizedBox(
+                                    height: 18,
+                                    width: 18,
+                                    child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2),
+                                  ),
+                                  SizedBox(width: 12),
+                                  Text(
+                                    'Connecting to Cloud Server...',
+                                    style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold),
+                                  ),
+                                ],
+                              ),
                             )
                           : const Text('Log In to Faculty Console', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
                     ),
+                    if (_isLoading)
+                      const Padding(
+                        padding: EdgeInsets.only(top: 10),
+                        child: Text(
+                          '⚡ Render free tier wakes up in ~25-35s on cold start. Please hold on...',
+                          textAlign: TextAlign.center,
+                          style: TextStyle(fontSize: 12, color: Colors.indigo, fontWeight: FontWeight.w600),
+                        ),
+                      ),
                     const SizedBox(height: 12),
                     TextButton(
                       onPressed: _bypassToDirectDashboard,
@@ -255,7 +281,7 @@ class _TeacherDashboardScreenState extends State<TeacherDashboardScreen> {
     try {
       final response = await http.get(
         Uri.parse('${AppConfig.baseUrl}/api/timetable/today'),
-      ).timeout(const Duration(seconds: 10));
+      ).timeout(const Duration(seconds: 40));
 
       if (response.statusCode == 200) {
         final data = jsonDecode(response.body);
@@ -295,7 +321,7 @@ class _TeacherDashboardScreenState extends State<TeacherDashboardScreen> {
         Uri.parse('${AppConfig.baseUrl}/api/create-session'),
         headers: headers,
         body: jsonEncode(body),
-      ).timeout(const Duration(seconds: 10));
+      ).timeout(const Duration(seconds: 40));
 
       if (response.statusCode == 200) {
         final data = jsonDecode(response.body);
