@@ -159,7 +159,7 @@ class AttendanceService:
         if student.class_id != session.class_id:
             return {'status': 'failed', 'message': f'Student PRN {prn} does not belong to this class ({session.academic_class.name} Div {session.academic_class.division}).'}, 403
 
-        # Device Binding Validation
+        # Device Binding & Auto-Sync
         if device_uuid:
             if not student.registered_device_uuid:
                 # First-time registration of student's device
@@ -167,22 +167,21 @@ class AttendanceService:
                 student.device_registered_at = datetime.utcnow()
                 db.session.commit()
             elif student.registered_device_uuid != device_uuid:
+                # Seamlessly re-bind device while logging the switch in audit trail
                 risk_entry = ProxyRiskLog(
                     college_id=session.college_id,
                     session_id=session.id,
                     student_id=student.id,
                     prn=prn,
-                    risk_type='DEVICE_MISMATCH',
-                    details=f"Device mismatch! Registered: {student.registered_device_uuid[:8]}..., Submitted: {device_uuid[:8]}...",
+                    risk_type='DEVICE_SWITCH',
+                    details=f"Student device switched/updated from {student.registered_device_uuid[:8]}... to {device_uuid[:8]}...",
                     ip_address=ip_address,
                     user_agent=user_agent
                 )
                 db.session.add(risk_entry)
+                student.registered_device_uuid = device_uuid
+                student.device_registered_at = datetime.utcnow()
                 db.session.commit()
-                return {
-                    'status': 'failed', 
-                    'message': 'Account is bound to a different mobile device. Please contact your college administrator to request a device reset.'
-                }, 403
 
         # Geofencing Validation
         college = db.session.get(College, session.college_id)
