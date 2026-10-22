@@ -60,7 +60,7 @@ class QRTokenService:
         return secrets.token_urlsafe(32)
 
     @classmethod
-    def get_or_rotate_token(cls, session, max_age_seconds=40):
+    def get_or_rotate_token(cls, session, max_age_seconds=80):
         """
         If current token is older than max_age_seconds, generates a new rotating token.
         Returns (current_token, time_remaining_seconds)
@@ -79,7 +79,7 @@ class QRTokenService:
         return session.current_token, int(remaining)
 
     @classmethod
-    def verify_token(cls, session, submitted_token, max_age_seconds=40):
+    def verify_token(cls, session, submitted_token, max_age_seconds=80):
         """
         Strict server-side token validation:
         1. Session must be ACTIVE

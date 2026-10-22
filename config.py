@@ -10,8 +10,8 @@ class Config:
     )
     SQLALCHEMY_TRACK_MODIFICATIONS = False
     
-    # QR Token validity in seconds (strictly 40 seconds)
-    QR_EXPIRY_SECONDS = int(os.environ.get('QR_EXPIRY_SECONDS', 40))
+    # QR Token validity in seconds (strictly 80 seconds)
+    QR_EXPIRY_SECONDS = int(os.environ.get('QR_EXPIRY_SECONDS', 80))
     
     # Default GPS Geofence values (per college defaults)
     DEFAULT_GEOFENCE_RADIUS_METERS = float(os.environ.get('DEFAULT_GEOFENCE_RADIUS_METERS', 150.0))

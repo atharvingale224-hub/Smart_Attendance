@@ -427,7 +427,7 @@ def get_teacher_timetable():
 @app.route('/api/teacher/session/<session_id>/live-qr', methods=['GET'])
 def get_live_rotating_qr(session_id):
     """
-    Retrieves or rotates the 40-second dynamic QR code token for classroom projector.
+    Retrieves or rotates the 80-second dynamic QR code token for classroom projector.
     """
     session = db.session.get(LectureSession, session_id)
     if not session:

@@ -227,7 +227,7 @@ class _TeacherDashboardScreenState extends State<TeacherDashboardScreen> {
   String generatedUrl = "";
   String activeSessionId = "";
   String currentToken = "";
-  int secondsRemaining = 40;
+  int secondsRemaining = 80;
   bool isSessionActive = false;
   bool isLoading = false;
   List<dynamic> attendanceList = [];
@@ -267,7 +267,7 @@ class _TeacherDashboardScreenState extends State<TeacherDashboardScreen> {
           activeSessionId = data['session_id'];
           generatedUrl = data['url'];
           currentToken = data['token'] ?? '';
-          secondsRemaining = data['valid_for_seconds'] ?? 40;
+          secondsRemaining = data['valid_for_seconds'] ?? 80;
           isSessionActive = true;
         });
         showSnackBar('Attendance Session Started! Rotating QR is Live.');
@@ -320,7 +320,7 @@ class _TeacherDashboardScreenState extends State<TeacherDashboardScreen> {
         setState(() {
           currentToken = data['current_token'];
           generatedUrl = data['student_url'];
-          secondsRemaining = data['seconds_remaining'] ?? 40;
+          secondsRemaining = data['seconds_remaining'] ?? 80;
         });
       }
     } catch (e) {
@@ -446,7 +446,7 @@ class _TeacherDashboardScreenState extends State<TeacherDashboardScreen> {
                     const SizedBox(width: 10),
                     Expanded(
                       child: Text(
-                        'Classroom Projector Mode: QR rotates every 40s to prevent proxy sharing.',
+                        'Classroom Projector Mode: QR rotates every 80s to prevent proxy sharing.',
                         style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: Colors.amber.shade900),
                       ),
                     ),
@@ -477,7 +477,7 @@ class _TeacherDashboardScreenState extends State<TeacherDashboardScreen> {
                           onPressed: isLoading ? null : createSession,
                           icon: const Icon(Icons.play_arrow_rounded, color: Colors.white, size: 22),
                           label: Text(
-                            isLoading ? 'Starting Session...' : 'Start 40s Dynamic QR Session',
+                            isLoading ? 'Starting Session...' : 'Start 80s Dynamic QR Session',
                             style: const TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.bold),
                           ),
                         )
