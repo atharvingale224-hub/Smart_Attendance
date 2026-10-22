@@ -1,0 +1,474 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Attendio - Student Attendance Portal</title>
+    <script src="https://unpkg.com/html5-qrcode" type="text/javascript"></script>
+    <style>
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+            background: #F3F4F6;
+            color: #1F2937;
+            display: flex;
+            justify-content: center;
+            align-items: flex-start;
+            min-height: 100vh;
+            padding: 20px 16px;
+        }
+        .container {
+            width: 100%;
+            max-width: 440px;
+        }
+        .nav-tabs {
+            display: flex;
+            background: #E5E7EB;
+            border-radius: 12px;
+            padding: 4px;
+            margin-bottom: 16px;
+        }
+        .tab-btn {
+            flex: 1;
+            padding: 10px;
+            text-align: center;
+            font-size: 14px;
+            font-weight: 600;
+            border: none;
+            background: transparent;
+            color: #4B5563;
+            border-radius: 8px;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+        .tab-btn.active {
+            background: white;
+            color: #4F46E5;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.06);
+        }
+        .card {
+            background: white;
+            padding: 26px 20px;
+            border-radius: 16px;
+            box-shadow: 0 10px 25px rgba(0,0,0,0.06);
+            border: 1px solid #E5E7EB;
+        }
+        .logo-badge {
+            display: inline-block;
+            background: #EEF2FF;
+            color: #4F46E5;
+            padding: 4px 12px;
+            border-radius: 20px;
+            font-size: 12px;
+            font-weight: 700;
+            margin-bottom: 10px;
+        }
+        h2 { font-size: 20px; font-weight: 700; margin-bottom: 4px; color: #111827; }
+        p.subtitle { color: #6B7280; font-size: 13px; margin-bottom: 18px; }
+        .session-info {
+            background: #F9FAFB;
+            border: 1px solid #E5E7EB;
+            border-radius: 8px;
+            padding: 10px 12px;
+            font-size: 13px;
+            color: #4B5563;
+            margin-bottom: 16px;
+            text-align: left;
+        }
+        .session-info span { font-weight: 600; color: #111827; }
+        .input-group { margin-bottom: 14px; text-align: left; }
+        .input-group label { display: block; font-size: 12px; font-weight: 600; color: #374151; margin-bottom: 5px; }
+        input {
+            width: 100%;
+            padding: 12px;
+            border: 1.5px solid #D1D5DB;
+            border-radius: 8px;
+            font-size: 15px;
+            outline: none;
+            transition: border-color 0.2s;
+        }
+        input:focus { border-color: #4F46E5; }
+        .btn {
+            background: #4F46E5;
+            color: white;
+            border: none;
+            padding: 13px;
+            width: 100%;
+            border-radius: 8px;
+            font-size: 15px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: background 0.2s;
+            margin-bottom: 10px;
+        }
+        .btn:hover { background: #4338CA; }
+        .btn:disabled { background: #9CA3AF; cursor: not-allowed; }
+        .btn-outline {
+            background: transparent;
+            color: #4F46E5;
+            border: 1.5px solid #C7D2FE;
+        }
+        .btn-outline:hover { background: #EEF2FF; }
+        #status {
+            margin-top: 14px;
+            padding: 12px;
+            border-radius: 8px;
+            font-size: 13px;
+            line-height: 1.4;
+            display: none;
+        }
+        .success { background: #ECFDF5; color: #065F46; border: 1px solid #A7F3D0; display: block !important; }
+        .error { background: #FEF2F2; color: #991B1B; border: 1px solid #FECACA; display: block !important; }
+        .info { background: #EFF6FF; color: #1E40AF; border: 1px solid #BFDBFE; display: block !important; }
+        
+        /* Dashboard Roster & Defaulter Styles */
+        .stat-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 12px;
+            margin-bottom: 18px;
+        }
+        .stat-box {
+            background: #F9FAFB;
+            border: 1px solid #E5E7EB;
+            padding: 12px;
+            border-radius: 10px;
+            text-align: center;
+        }
+        .stat-box .num { font-size: 22px; font-weight: 700; color: #111827; }
+        .stat-box .lbl { font-size: 12px; color: #6B7280; font-weight: 500; }
+        .badge {
+            display: inline-block;
+            padding: 4px 10px;
+            border-radius: 14px;
+            font-size: 12px;
+            font-weight: 700;
+            margin-top: 6px;
+        }
+        .badge-good { background: #DEF7EC; color: #03543F; }
+        .badge-defaulter { background: #FDE8E8; color: #9B1C1C; }
+        .subject-card {
+            background: #F9FAFB;
+            border: 1px solid #E5E7EB;
+            padding: 12px;
+            border-radius: 8px;
+            margin-bottom: 10px;
+            text-align: left;
+        }
+        .subject-header { display: flex; justify-content: space-between; font-weight: 600; font-size: 13px; margin-bottom: 6px; }
+        .progress-bar-bg { background: #E5E7EB; height: 8px; border-radius: 4px; overflow: hidden; }
+        .progress-bar-fill { height: 100%; background: #4F46E5; border-radius: 4px; }
+        .progress-bar-fill.defaulter { background: #EF4444; }
+        table { width: 100%; border-collapse: collapse; font-size: 12px; margin-top: 10px; }
+        th, td { text-align: left; padding: 8px; border-bottom: 1px solid #E5E7EB; }
+        th { background: #F9FAFB; color: #4B5563; }
+        #qrReaderModal {
+            display: none;
+            background: rgba(0,0,0,0.6);
+            position: fixed;
+            top: 0; left: 0; right: 0; bottom: 0;
+            justify-content: center;
+            align-items: center;
+            padding: 20px;
+            z-index: 1000;
+        }
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <div class="nav-tabs">
+        <button class="tab-btn active" id="tabMark" onclick="switchTab('mark')">⚡ Mark Attendance</button>
+        <button class="tab-btn" id="tabDashboard" onclick="switchTab('dashboard')">📊 My Attendance & Defaulter Status</button>
+    </div>
+
+    <!-- TAB 1: MARK ATTENDANCE -->
+    <div id="viewMark" class="card">
+        <div class="logo-badge">ATTENDIO STUDENT</div>
+        <h2>Attendance Verification</h2>
+        <p class="subtitle">Secure GPS & Rotating QR Classroom Verification</p>
+
+        <div class="session-info">
+            <div>Session ID: <span id="sessionDisplay">Auto-detected from QR</span></div>
+            <div id="tokenInfo" style="margin-top: 4px; display: none;">Dynamic Token: <span id="tokenDisplay">-</span></div>
+        </div>
+
+        <button class="btn btn-outline" type="button" onclick="openCameraScanner()">
+            📷 Scan Classroom QR with Camera
+        </button>
+
+        <div class="input-group">
+            <label for="prn">Student PRN / Roll No</label>
+            <input type="text" id="prn" placeholder="e.g. PRN2024001" autocomplete="off" required>
+        </div>
+
+        <button id="btnSubmit" class="btn" onclick="submitAttendance()">Mark My Attendance</button>
+        <div id="status"></div>
+
+        <p style="font-size: 11px; color: #9CA3AF; margin-top: 16px; line-height: 1.4;">
+            🔒 Device Binding Active: Attendance is permanently tied to your registered smartphone and campus geofence.
+        </p>
+    </div>
+
+    <!-- TAB 2: STUDENT DASHBOARD & DEFAULTER STATUS -->
+    <div id="viewDashboard" class="card" style="display: none;">
+        <div class="logo-badge">STUDENT RECORD</div>
+        <h2 id="dashStudentName">My Academic Standing</h2>
+        <p class="subtitle" id="dashClassInfo">Loading enrolled curriculum...</p>
+
+        <div class="stat-grid">
+            <div class="stat-box">
+                <div class="num" id="dashAttendancePct">0%</div>
+                <div class="lbl">Overall Attendance</div>
+                <div id="dashDefaulterBadge" class="badge badge-good">Good Standing</div>
+            </div>
+            <div class="stat-box">
+                <div class="num" id="dashLecturesCount">0 / 0</div>
+                <div class="lbl">Lectures Attended</div>
+                <p style="font-size: 11px; color: #6B7280; margin-top: 6px;">Min 75% Required</p>
+            </div>
+        </div>
+
+        <h3 style="font-size: 14px; font-weight: 700; margin-bottom: 10px; text-align: left;">Subject-wise Attendance</h3>
+        <div id="subjectsContainer">Loading subjects...</div>
+
+        <h3 style="font-size: 14px; font-weight: 700; margin: 18px 0 10px; text-align: left;">Recent Attendance History</h3>
+        <div id="historyContainer" style="max-height: 180px; overflow-y: auto;">Loading history...</div>
+    </div>
+</div>
+
+<!-- Camera QR Scanner Modal -->
+<div id="qrReaderModal">
+    <div style="background: white; border-radius: 16px; padding: 20px; width: 100%; max-width: 360px; text-align: center;">
+        <h3 style="margin-bottom: 12px; font-size: 16px;">Scan Classroom Projector QR</h3>
+        <div id="reader" style="width: 100%;"></div>
+        <button class="btn btn-outline" style="margin-top: 14px;" onclick="closeCameraScanner()">Cancel</button>
+    </div>
+</div>
+
+<script>
+    const urlParams = new URLSearchParams(window.location.search);
+    let sessionId = urlParams.get('session');
+    let qrToken = urlParams.get('token');
+
+    const sessionDisplay = document.getElementById('sessionDisplay');
+    const tokenInfo = document.getElementById('tokenInfo');
+    const tokenDisplay = document.getElementById('tokenDisplay');
+
+    if (sessionId) sessionDisplay.innerText = sessionId.substring(0, 8);
+    if (qrToken) {
+        tokenInfo.style.display = "block";
+        tokenDisplay.innerText = qrToken.substring(0, 8) + '...';
+    }
+
+    function getDeviceUUID() {
+        let deviceId = localStorage.getItem('attendio_device_id');
+        if (!deviceId) {
+            deviceId = (crypto && crypto.randomUUID) ? crypto.randomUUID() : 'dev_' + Math.random().toString(36).substring(2, 12);
+            localStorage.setItem('attendio_device_id', deviceId);
+        }
+        return deviceId;
+    }
+
+    const savedPrn = localStorage.getItem('attendio_student_prn');
+    if (savedPrn) {
+        document.getElementById('prn').value = savedPrn;
+    }
+
+    function switchTab(tab) {
+        document.getElementById('tabMark').classList.toggle('active', tab === 'mark');
+        document.getElementById('tabDashboard').classList.toggle('active', tab === 'dashboard');
+        document.getElementById('viewMark').style.display = tab === 'mark' ? 'block' : 'none';
+        document.getElementById('viewDashboard').style.display = tab === 'dashboard' ? 'block' : 'none';
+
+        if (tab === 'dashboard') {
+            loadStudentDashboard();
+        }
+    }
+
+    let html5QrCode = null;
+    function openCameraScanner() {
+        document.getElementById('qrReaderModal').style.display = 'flex';
+        html5QrCode = new Html5Qrcode("reader");
+        html5QrCode.start(
+            { facingMode: "environment" },
+            { fps: 10, qrbox: { width: 220, height: 220 } },
+            (decodedText) => {
+                // Parse scanned URL
+                try {
+                    const parsedUrl = new URL(decodedText);
+                    sessionId = parsedUrl.searchParams.get('session');
+                    qrToken = parsedUrl.searchParams.get('token');
+                    if (sessionId) sessionDisplay.innerText = sessionId.substring(0, 8);
+                    if (qrToken) {
+                        tokenInfo.style.display = "block";
+                        tokenDisplay.innerText = qrToken.substring(0, 8) + '...';
+                    }
+                    closeCameraScanner();
+                    alert("✅ QR Code Scanned! Click 'Mark My Attendance'.");
+                } catch (e) {
+                    closeCameraScanner();
+                }
+            },
+            (error) => {}
+        ).catch(err => {
+            alert("Camera access failed: " + err);
+            closeCameraScanner();
+        });
+    }
+
+    function closeCameraScanner() {
+        if (html5QrCode) {
+            html5QrCode.stop().then(() => html5QrCode.clear());
+        }
+        document.getElementById('qrReaderModal').style.display = 'none';
+    }
+
+    async function submitAttendance() {
+        const prnInput = document.getElementById('prn');
+        const prn = prnInput.value.trim().toUpperCase();
+        const statusDiv = document.getElementById('status');
+        const btn = document.getElementById('btnSubmit');
+
+        if (!prn) {
+            statusDiv.className = "error";
+            statusDiv.innerText = "⚠️ Please enter your PRN / Roll Number!";
+            prnInput.focus();
+            return;
+        }
+
+        if (!sessionId) {
+            statusDiv.className = "error";
+            statusDiv.innerText = "❌ Missing session ID. Please scan the projector QR code.";
+            return;
+        }
+
+        localStorage.setItem('attendio_student_prn', prn);
+        statusDiv.className = "info";
+        statusDiv.innerText = "📍 Acquiring high-precision GPS coordinates...";
+        btn.disabled = true;
+
+        if (!navigator.geolocation) {
+            statusDiv.className = "error";
+            statusDiv.innerText = "❌ Geolocation is not supported by your browser.";
+            btn.disabled = false;
+            return;
+        }
+
+        const deviceUUID = getDeviceUUID();
+
+        navigator.geolocation.getCurrentPosition(
+            async (position) => {
+                statusDiv.innerText = "⚡ Submitting encrypted attendance record...";
+                try {
+                    const response = await fetch('/api/mark-attendance', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({
+                            session_id: sessionId,
+                            prn: prn,
+                            latitude: position.coords.latitude,
+                            longitude: position.coords.longitude,
+                            accuracy: position.coords.accuracy || 10.0,
+                            device_uuid: deviceUUID,
+                            token: qrToken
+                        })
+                    });
+
+                    const data = await response.json();
+                    if (response.ok && data.status === 'success') {
+                        statusDiv.className = "success";
+                        statusDiv.innerText = "✅ " + data.message;
+                        btn.style.display = 'none';
+                    } else {
+                        statusDiv.className = "error";
+                        statusDiv.innerText = "❌ " + (data.message || "Attendance failed.");
+                        btn.disabled = false;
+                    }
+                } catch (err) {
+                    statusDiv.className = "error";
+                    statusDiv.innerText = "⚠️ Network error. Please check your mobile data connection.";
+                    btn.disabled = false;
+                }
+            },
+            (error) => {
+                btn.disabled = false;
+                statusDiv.className = "error";
+                statusDiv.innerText = "🚫 Location access denied. Please enable GPS permissions in browser settings.";
+            },
+            { enableHighAccuracy: true, timeout: 15000, maximumAge: 0 }
+        );
+    }
+
+    async function loadStudentDashboard() {
+        const prn = (document.getElementById('prn').value || localStorage.getItem('attendio_student_prn') || '').trim();
+        if (!prn) {
+            document.getElementById('subjectsContainer').innerHTML = "<p style='color:#6B7280; font-size:13px;'>Please enter your PRN above to view attendance records.</p>";
+            return;
+        }
+
+        try {
+            const res = await fetch(`/api/student/dashboard?prn=${encodeURIComponent(prn)}`);
+            const data = await res.json();
+            if (res.ok && data.status === 'success') {
+                const s = data.student;
+                const o = data.overall;
+
+                document.getElementById('dashStudentName').innerText = s.full_name || s.prn;
+                document.getElementById('dashClassInfo').innerText = `${s.college_name} • ${s.class_name} Div ${s.division} (Roll: ${s.roll_no || '-'})`;
+
+                document.getElementById('dashAttendancePct').innerText = `${o.attendance_percentage}%`;
+                document.getElementById('dashLecturesCount').innerText = `${o.total_present} / ${o.total_conducted}`;
+
+                const badge = document.getElementById('dashDefaulterBadge');
+                if (o.is_defaulter) {
+                    badge.className = "badge badge-defaulter";
+                    badge.innerText = "⚠️ Defaulter Warning (<75%)";
+                } else {
+                    badge.className = "badge badge-good";
+                    badge.innerText = "✅ Good Standing (≥75%)";
+                }
+
+                // Render Subjects
+                let subHtml = "";
+                data.subjects.forEach(sub => {
+                    subHtml += `
+                    <div class="subject-card">
+                        <div class="subject-header">
+                            <span>${sub.name} (${sub.code})</span>
+                            <span style="color:${sub.is_defaulter ? '#EF4444' : '#10B981'}">${sub.percentage}% (${sub.attended}/${sub.conducted})</span>
+                        </div>
+                        <div class="progress-bar-bg">
+                            <div class="progress-bar-fill ${sub.is_defaulter ? 'defaulter' : ''}" style="width: ${sub.percentage}%;"></div>
+                        </div>
+                    </div>`;
+                });
+                document.getElementById('subjectsContainer').innerHTML = subHtml || "<p style='color:#6B7280;'>No subjects assigned.</p>";
+
+                // Render History
+                if (!data.history.length) {
+                    document.getElementById('historyContainer').innerHTML = "<p style='color:#6B7280; font-size:12px;'>No attendance records found.</p>";
+                } else {
+                    let histHtml = "<table><tr><th>Subject</th><th>Faculty</th><th>Timestamp</th><th>Status</th></tr>";
+                    data.history.forEach(h => {
+                        histHtml += `<tr>
+                            <td><strong>${h.subject_name}</strong></td>
+                            <td>${h.teacher_name}</td>
+                            <td>${h.timestamp}</td>
+                            <td style="color:#059669; font-weight:600;">${h.status}</td>
+                        </tr>`;
+                    });
+                    histHtml += "</table>";
+                    document.getElementById('historyContainer').innerHTML = histHtml;
+                }
+            } else {
+                document.getElementById('subjectsContainer').innerHTML = `<p style='color:#EF4444;'>${data.message || 'Error loading dashboard'}</p>`;
+            }
+        } catch (e) {
+            console.error(e);
+        }
+    }
+</script>
+
+</body>
+</html>

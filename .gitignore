@@ -1,0 +1,24 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.pytest_cache/
+*.db-journal
+
+# Flutter / Dart
+teacher_app/build/
+teacher_app/.dart_tool/
+teacher_app/.flutter-plugins
+teacher_app/.flutter-plugins-dependencies
+teacher_app/.packages
+.pub-cache/
+.pub/
+
+# IDE / OS
+.idea/
+.vscode/
+*.swp
+*.swo
+.DS_Store
+Thumbs.db

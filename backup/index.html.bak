@@ -1,0 +1,108 @@
+<!-- BACKUP OF SmartAttendence/backend/templates/index.html -->
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Smart Attendance - Student Portal</title>
+    <style>
+        body { font-family: Arial, sans-serif; background: #f4f7f6; display: flex; justify-content: center; align-items: center; height: 100vh; margin: 0; }
+        .card { background: white; padding: 25px; border-radius: 12px; box-shadow: 0 4px 10px rgba(0,0,0,0.1); width: 90%; max-width: 350px; text-align: center; }
+        h2 { color: #333; margin-bottom: 20px; }
+        input { width: 100%; padding: 12px; margin: 10px 0; border: 1px solid #ccc; border-radius: 6px; box-sizing: border-box; font-size: 16px; }
+        button { background: #4F46E5; color: white; border: none; padding: 12px; width: 100%; border-radius: 6px; font-size: 16px; cursor: pointer; }
+        button:disabled { background: #9CA3AF; }
+        #status { margin-top: 15px; font-weight: bold; font-size: 14px; }
+        .success { color: green; }
+        .error { color: red; }
+    </style>
+</head>
+<body>
+
+<div class="card">
+    <h2>Student Attendance</h2>
+    <input type="text" id="prn" placeholder="Enter PRN / Roll No" required>
+    <button id="btn" onclick="submitAttendance()">Mark Attendance</button>
+    <div id="status"></div>
+</div>
+
+<script>
+    // URL मधून session_id काढणे
+    const urlParams = new URLSearchParams(window.location.search);
+    const sessionId = urlParams.get('session');
+
+    async function submitAttendance() {
+        const prn = document.getElementById('prn').value.trim();
+        const statusDiv = document.getElementById('status');
+        const btn = document.getElementById('btn');
+
+        if (!prn) {
+            statusDiv.className = "error";
+            statusDiv.innerText = "Please enter your PRN!";
+            return;
+        }
+
+        if (!sessionId) {
+            statusDiv.className = "error";
+            statusDiv.innerText = "Invalid or Missing Session Link!";
+            return;
+        }
+
+        statusDiv.className = "";
+        statusDiv.innerText = "Fetching GPS Location...";
+        btn.disabled = true;
+
+        // GPS Location Capture करणे
+        if (navigator.geolocation) {
+            navigator.geolocation.getCurrentPosition(
+                async (position) => {
+                    const lat = position.coords.latitude;
+                    const lng = position.coords.longitude;
+
+                    statusDiv.innerText = "Submitting Attendance...";
+
+                    try {
+                        const response = await fetch('http://127.0.0.1:5000/api/mark-attendance', {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({
+                                session_id: sessionId,
+                                prn: prn,
+                                latitude: lat,
+                                longitude: lng
+                            })
+                        });
+
+                        const data = await response.json();
+
+                        if (response.ok) {
+                            statusDiv.className = "success";
+                            statusDiv.innerText = "✅ " + data.message;
+                        } else {
+                            statusDiv.className = "error";
+                            statusDiv.innerText = "❌ " + data.message;
+                        }
+                    } catch (err) {
+                        statusDiv.className = "error";
+                        statusDiv.innerText = "Server Error: Check if Flask server is running.";
+                    } finally {
+                        btn.disabled = false;
+                    }
+                },
+                (error) => {
+                    statusDiv.className = "error";
+                    statusDiv.innerText = "GPS Error: Please enable Location Access!";
+                    btn.disabled = false;
+                },
+                { enableHighAccuracy: true }
+            );
+        } else {
+            statusDiv.className = "error";
+            statusDiv.innerText = "Geolocation is not supported by your browser.";
+            btn.disabled = false;
+        }
+    }
+</script>
+
+</body>
+</html>

@@ -1,0 +1,219 @@
+// BACKUP OF SmartAttendence/teacher_app/lib/main.dart
+import 'dart:convert';
+import 'package:flutter/material.dart';
+import 'package:http/http.dart' as http;
+
+void main() {
+  runApp(const TeacherApp());
+}
+
+class TeacherApp extends StatelessWidget {
+  const TeacherApp({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return MaterialApp(
+      debugShowCheckedModeBanner: false,
+      title: 'Smart Attendance - Teacher',
+      theme: ThemeData(
+        primarySwatch: Colors.indigo,
+        scaffoldBackgroundColor: const Color(0xFFF3F4F6),
+      ),
+      home: const DashboardScreen(),
+    );
+  }
+}
+
+class DashboardScreen extends StatefulWidget {
+  const DashboardScreen({super.key});
+
+  @override
+  State<DashboardScreen> createState() => _DashboardScreenState();
+}
+
+class _DashboardScreenState extends State<DashboardScreen> {
+  // लोकल IP (मोबाईल आणि लॅपटॉप दोन्हीवरून चालण्यासाठी)
+  final String baseUrl = "http://10.68.174.116:5000";
+
+  String generatedUrl = "";
+  String activeSessionId = "";
+  bool isLoading = false;
+  List<dynamic> attendanceList = [];
+
+  @override
+  void initState() {
+    super.initState();
+    fetchAttendanceReport();
+  }
+
+  Future<void> createSession() async {
+    setState(() {
+      isLoading = true;
+    });
+
+    try {
+      final response = await http.post(Uri.parse('$baseUrl/api/create-session'));
+
+      if (response.statusCode == 200) {
+        final data = jsonDecode(response.body);
+        setState(() {
+          activeSessionId = data['session_id'];
+          generatedUrl = data['url'];
+        });
+        fetchAttendanceReport();
+      } else {
+        showSnackBar('Failed to create session!');
+      }
+    } catch (e) {
+      showSnackBar('Error connecting to Backend Server!');
+    } finally {
+      setState(() {
+        isLoading = false;
+      });
+    }
+  }
+
+  Future<void> fetchAttendanceReport() async {
+    try {
+      final response = await http.get(Uri.parse('$baseUrl/api/attendance-report'));
+
+      if (response.statusCode == 200) {
+        final data = jsonDecode(response.body);
+        setState(() {
+          attendanceList = data['records'];
+        });
+      }
+    } catch (e) {
+      print("Error fetching report: $e");
+    }
+  }
+
+  void showSnackBar(String msg) {
+    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(msg)));
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(
+        title: const Text('👨‍🏫 Teacher Attendance Dashboard'),
+        backgroundColor: Colors.indigo,
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.refresh),
+            onPressed: fetchAttendanceReport,
+            tooltip: 'Refresh Attendance List',
+          )
+        ],
+      ),
+      body: Padding(
+        padding: const EdgeInsets.all(16.0),
+        child: SingleChildScrollView(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Card(
+                elevation: 4,
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                child: Padding(
+                  padding: const EdgeInsets.all(20.0),
+                  child: Column(
+                    children: [
+                      const Text(
+                        'Create Attendance Session',
+                        style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Colors.indigo),
+                      ),
+                      const SizedBox(height: 15),
+                      ElevatedButton.icon(
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: Colors.indigo,
+                          padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
+                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                        ),
+                        onPressed: isLoading ? null : createSession,
+                        icon: const Icon(Icons.qr_code_scanner, color: Colors.white),
+                        label: Text(
+                          isLoading ? 'Generating...' : 'Generate 100s Link & QR',
+                          style: const TextStyle(color: Colors.white, fontSize: 16),
+                        ),
+                      ),
+                      if (generatedUrl.isNotEmpty) ...[
+                        const SizedBox(height: 20),
+                        SelectableText(
+                          generatedUrl,
+                          style: const TextStyle(color: Colors.blue, fontWeight: FontWeight.bold, fontSize: 13),
+                          textAlign: TextAlign.center,
+                        ),
+                        const SizedBox(height: 15),
+                        Container(
+                          padding: const EdgeInsets.all(8),
+                          decoration: BoxDecoration(
+                            border: Border.all(color: Colors.grey.shade300),
+                            borderRadius: BorderRadius.circular(8),
+                          ),
+                          child: Image.network(
+                            'https://api.qrserver.com/v1/create-qr-code/?size=180x180&data=$generatedUrl',
+                            height: 160,
+                            width: 160,
+                            errorBuilder: (context, error, stackTrace) => const Text('QR Load Failed'),
+                          ),
+                        ),
+                        const SizedBox(height: 8),
+                        const Text(
+                          '⏳ Link Valid strictly for 100 Seconds',
+                          style: TextStyle(color: Colors.red, fontWeight: FontWeight.bold, fontSize: 12),
+                        ),
+                      ]
+                    ],
+                  ),
+                ),
+              ),
+              const SizedBox(height: 20),
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  Text(
+                    '📋 Present Students (${attendanceList.length})',
+                    style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Colors.indigo),
+                  ),
+                  IconButton(
+                    onPressed: fetchAttendanceReport,
+                    icon: const Icon(Icons.sync, color: Colors.indigo),
+                  )
+                ],
+              ),
+              const SizedBox(height: 10),
+              attendanceList.isEmpty
+                  ? const Center(
+                      child: Padding(
+                        padding: EdgeInsets.all(20.0),
+                        child: Text('No attendance marked yet.'),
+                      ),
+                    )
+                  : ListView.builder(
+                      shrinkWrap: true,
+                      physics: const NeverScrollableScrollPhysics(),
+                      itemCount: attendanceList.length,
+                      itemBuilder: (context, index) {
+                        final record = attendanceList[index];
+                        return Card(
+                          margin: const EdgeInsets.symmetric(vertical: 6),
+                          child: ListTile(
+                            leading: const CircleAvatar(
+                              backgroundColor: Colors.green,
+                              child: Icon(Icons.check, color: Colors.white),
+                            ),
+                            title: Text('PRN: ${record['prn']}', style: const TextStyle(fontWeight: FontWeight.bold)),
+                            subtitle: Text('Time: ${record['timestamp']}'),
+                            trailing: Text('${record['distance']} m', style: const TextStyle(color: Colors.indigo, fontWeight: FontWeight.bold)),
+                          ),
+                        );
+                      },
+                    ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
