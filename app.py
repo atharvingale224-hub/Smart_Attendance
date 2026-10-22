@@ -33,7 +33,7 @@ def seed_initial_data():
         
         # Check if default college exists
         if not College.query.filter_by(code='GCEK').first():
-            print("🌱 Seeding initial Attendio database...")
+            print("[SEED] Seeding initial Attendio database...")
             
             # 1. Default College & Geofence
             college = College(
@@ -174,7 +174,14 @@ def seed_initial_data():
                 db.session.add(s_prof)
 
             db.session.commit()
-            print("✅ Initial Attendio database seeded successfully!")
+            print("[SUCCESS] Initial Attendio database seeded successfully!")
+
+# Auto-initialize database tables and seed data on app start/WSGI load
+with app.app_context():
+    try:
+        seed_initial_data()
+    except Exception as e:
+        print(f"Database init note: {e}")
 
 # -------------------------------------------------------------
 # WEB PORTAL ROUTES (Preserving existing UI + Admin UI)
@@ -675,7 +682,7 @@ def get_student_dashboard():
 # -------------------------------------------------------------
 if __name__ == '__main__':
     seed_initial_data()
-    print("🚀 Attendio Smart Multi-College Attendance Platform running on http://0.0.0.0:5000")
-    print("🏫 College Admin Console: http://127.0.0.1:5000/admin")
-    print("📱 Student Attendance Portal: http://127.0.0.1:5000/attend")
+    print("[STARTUP] Attendio Smart Multi-College Attendance Platform running on http://0.0.0.0:5000")
+    print("[ADMIN] College Admin Console: http://127.0.0.1:5000/admin")
+    print("[PORTAL] Student Attendance Portal: http://127.0.0.1:5000/attend")
     app.run(host='0.0.0.0', port=5000, debug=False)
