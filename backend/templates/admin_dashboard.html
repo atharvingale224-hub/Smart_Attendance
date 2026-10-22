@@ -324,11 +324,25 @@
             <div id="defaultersTable" style="margin-top: 16px;">Select a class to evaluate defaulters.</div>
         </div>
     </div>
+
+    <!-- Section: Classes & Timetable -->
+    <div id="section-classes" style="display: none;">
+        <div class="panel">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px;">
+                <div>
+                    <h3 style="margin: 0;">📅 Weekly Lecture Timetable</h3>
+                    <p style="color: #64748B; font-size: 13px; margin: 4px 0 0;">Class: T.Y. CSE Div- A (2026-27) | Bharati Vidyapeeth College of Engineering Kolhapur</p>
+                </div>
+                <button class="btn btn-outline" onclick="loadWeeklyTimetable()">🔄 Refresh Timetable</button>
+            </div>
+            <div id="timetableGridContainer" style="margin-top: 16px;">Loading timetable...</div>
+        </div>
+    </div>
 </div>
 
 <script>
     function showSection(name) {
-        const sections = ['dashboard', 'geofence', 'students', 'teachers', 'risks', 'reports'];
+        const sections = ['dashboard', 'geofence', 'students', 'teachers', 'classes', 'risks', 'reports'];
         sections.forEach(s => {
             const el = document.getElementById('section-' + s);
             if (el) el.style.display = (s === name) ? 'block' : 'none';
@@ -336,6 +350,51 @@
 
         document.querySelectorAll('.nav-link').forEach(link => link.classList.remove('active'));
         if (event && event.target) event.target.classList.add('active');
+
+        if (name === 'classes') {
+            loadWeeklyTimetable();
+        }
+    }
+
+    async function loadWeeklyTimetable() {
+        const container = document.getElementById('timetableGridContainer');
+        try {
+            const res = await fetch('/api/timetable/weekly');
+            const data = await res.json();
+            if (data.status === 'success') {
+                const tt = data.timetable;
+                let html = '<div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 16px;">';
+                for (const [day, slots] of Object.entries(tt)) {
+                    html += `<div style="background: #F8FAFC; border: 1.5px solid #E2E8F0; border-radius: 12px; padding: 16px; box-shadow: 0 1px 3px rgba(0,0,0,0.03);">
+                        <div style="font-weight: 800; color: #1E293B; font-size: 16px; margin-bottom: 12px; border-bottom: 2.5px solid #6366F1; padding-bottom: 6px; display: flex; justify-content: space-between; align-items: center;">
+                            <span>📅 ${day}</span>
+                            <span style="font-size: 11px; background: #E0E7FF; color: #4338CA; padding: 2px 8px; border-radius: 10px; font-weight: 700;">${slots.length} Lectures</span>
+                        </div>`;
+                    if (!slots || slots.length === 0) {
+                        html += '<div style="color: #94A3B8; font-size: 12px; font-style: italic; padding: 8px 0;">No lectures scheduled</div>';
+                    } else {
+                        slots.forEach(slot => {
+                            html += `
+                            <div style="background: white; border: 1px solid #CBD5E1; border-radius: 8px; padding: 12px; margin-bottom: 10px; border-left: 4px solid #6366F1;">
+                                <div style="display: flex; justify-content: space-between; align-items: flex-start;">
+                                    <div style="font-weight: 700; color: #1E1B4B; font-size: 14px;">${slot.subject_name}</div>
+                                    <span style="font-size: 11px; background: #EEF2FF; color: #4F46E5; padding: 2px 8px; border-radius: 6px; font-weight: 700;">${slot.room || 'LH2'}</span>
+                                </div>
+                                <div style="display: flex; justify-content: space-between; font-size: 12px; color: #64748B; margin-top: 6px;">
+                                    <span>⏰ <b>${slot.start_time} - ${slot.end_time}</b></span>
+                                    <span>👨‍🏫 ${slot.teacher_name || 'Faculty'}</span>
+                                </div>
+                            </div>`;
+                        });
+                    }
+                    html += '</div>';
+                }
+                html += '</div>';
+                container.innerHTML = html;
+            }
+        } catch (e) {
+            container.innerHTML = '<div style="color: red;">Failed to load timetable.</div>';
+        }
     }
 
     async function loadDashboardData() {

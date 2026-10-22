@@ -40,6 +40,15 @@ def seed_initial_data():
         except Exception as e:
             print(f"Auto-seed 77 note: {e}")
 
+        # Ensure Timetable from Bharati Vidyapeeth is present
+        try:
+            if TimetableSlot.query.count() < 10:
+                print("[SEED] Seeding Bharati Vidyapeeth weekly timetable...")
+                from seed_timetable import run as seed_tt_run
+                seed_tt_run()
+        except Exception as e:
+            print(f"Auto-seed timetable note: {e}")
+
         # Check if default college exists
         if not College.query.first():
             print("[SEED] Seeding initial Attendio database...")
@@ -714,6 +723,68 @@ def lookup_student():
         'class_name': student.academic_class.name if student.academic_class else '',
         'division': student.academic_class.division if student.academic_class else 'A'
     }), 200
+
+# -------------------------------------------------------------
+# TIMETABLE APIS
+# -------------------------------------------------------------
+@app.route('/api/timetable/weekly', methods=['GET'])
+def get_weekly_timetable():
+    """Returns the weekly timetable grouped by day for the active college/class"""
+    college = College.query.filter_by(code='BVCOEK').first() or College.query.first()
+    college_id = college.id if college else None
+    
+    slots = TimetableSlot.query.filter_by(college_id=college_id).all() if college_id else TimetableSlot.query.all()
+    days_order = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"]
+    grouped = {day: [] for day in days_order}
+
+    for s in slots:
+        d = s.to_dict()
+        if s.day_of_week in grouped:
+            grouped[s.day_of_week].append(d)
+
+    for day in grouped:
+        grouped[day].sort(key=lambda x: x['start_time'])
+
+    return jsonify({
+        'status': 'success',
+        'college_name': college.name if college else '',
+        'timetable': grouped,
+        'total_slots': len(slots)
+    }), 200
+
+@app.route('/api/timetable/slot', methods=['POST'])
+def add_timetable_slot():
+    """Add a new timetable lecture slot"""
+    data = request.json or {}
+    college = College.query.filter_by(code='BVCOEK').first() or College.query.first()
+    if not college:
+        return jsonify({'status': 'failed', 'message': 'College not found.'}), 400
+
+    teacher_id = data.get('teacher_id')
+    subject_id = data.get('subject_id')
+    class_id = data.get('class_id')
+    day_of_week = data.get('day_of_week')
+    start_time = data.get('start_time')
+    end_time = data.get('end_time')
+    room = data.get('room', 'LH2')
+
+    if not all([teacher_id, subject_id, class_id, day_of_week, start_time, end_time]):
+        return jsonify({'status': 'failed', 'message': 'All slot fields are required.'}), 400
+
+    slot = TimetableSlot(
+        college_id=college.id,
+        teacher_id=teacher_id,
+        class_id=class_id,
+        subject_id=subject_id,
+        day_of_week=day_of_week,
+        start_time=start_time,
+        end_time=end_time,
+        room=room
+    )
+    db.session.add(slot)
+    db.session.commit()
+
+    return jsonify({'status': 'success', 'message': 'Timetable slot created successfully!', 'slot': slot.to_dict()}), 201
 
 # -------------------------------------------------------------
 # APPLICATION ENTRY POINT
