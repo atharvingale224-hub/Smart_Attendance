@@ -199,7 +199,17 @@
 
         <div class="input-group">
             <label for="prn">Student PRN / Roll No</label>
-            <input type="text" id="prn" placeholder="e.g. PRN2024001" autocomplete="off" required>
+            <input type="text" id="prn" placeholder="e.g. 2024071601 or Roll 1-77" autocomplete="off" required>
+        </div>
+
+        <!-- Verified Student Name Card -->
+        <div id="studentNamePreview" style="display:none; margin: 0 0 16px; padding: 12px 14px; background: #EEF2FF; border: 1.5px solid #6366F1; border-radius: 10px; text-align: left;">
+            <div style="display: flex; align-items: center; justify-content: space-between;">
+                <span style="font-size: 11px; color: #4338CA; font-weight: 800; text-transform: uppercase; letter-spacing: 0.5px;">✓ Student Verified</span>
+                <span id="studentBatchText" style="font-size: 11px; background: #4F46E5; color: white; padding: 2px 8px; border-radius: 12px; font-weight: 700;">T.Y. CSE</span>
+            </div>
+            <div id="studentNameText" style="font-size: 16px; font-weight: 800; color: #1E1B4B; margin-top: 4px;"></div>
+            <div id="studentRollText" style="font-size: 12px; color: #4F46E5; margin-top: 2px; font-weight: 600;"></div>
         </div>
 
         <button id="btnSubmit" class="btn" onclick="submitAttendance()">Mark My Attendance</button>
@@ -270,9 +280,47 @@
         return deviceId;
     }
 
+    const prnInputEl = document.getElementById('prn');
+    let lookupTimer = null;
+
+    async function lookupStudentName(query) {
+        if (!query || query.trim() === '') {
+            document.getElementById('studentNamePreview').style.display = 'none';
+            return;
+        }
+        try {
+            const res = await fetch(`/api/student/lookup?prn=${encodeURIComponent(query.trim())}`);
+            if (res.ok) {
+                const data = await res.json();
+                document.getElementById('studentNameText').innerText = data.name;
+                document.getElementById('studentRollText').innerText = `Roll No: ${data.roll_no} | PRN: ${data.prn}`;
+                document.getElementById('studentBatchText').innerText = data.class_name || 'T.Y. CSE';
+                document.getElementById('studentNamePreview').style.display = 'block';
+                if (query.trim() !== data.prn && query.trim().length <= 3 && query.trim().match(/^\d+$/)) {
+                    prnInputEl.value = data.prn;
+                }
+            } else {
+                document.getElementById('studentNamePreview').style.display = 'none';
+            }
+        } catch (e) {
+            // silent
+        }
+    }
+
+    prnInputEl.addEventListener('input', () => {
+        clearTimeout(lookupTimer);
+        const val = prnInputEl.value.trim();
+        if (val.length >= 1) {
+            lookupTimer = setTimeout(() => lookupStudentName(val), 200);
+        } else {
+            document.getElementById('studentNamePreview').style.display = 'none';
+        }
+    });
+
     const savedPrn = localStorage.getItem('attendio_student_prn');
     if (savedPrn) {
-        document.getElementById('prn').value = savedPrn;
+        prnInputEl.value = savedPrn;
+        lookupStudentName(savedPrn);
     }
 
     function switchTab(tab) {

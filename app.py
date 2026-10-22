@@ -31,8 +31,17 @@ def seed_initial_data():
     with app.app_context():
         db.create_all()
         
+        # Ensure all 77 students from Bharati Vidyapeeth are present
+        try:
+            if StudentProfile.query.count() < 70:
+                print("[SEED] Seeding 77 students into database...")
+                from seed_77_students import run as seed_run
+                seed_run()
+        except Exception as e:
+            print(f"Auto-seed 77 note: {e}")
+
         # Check if default college exists
-        if not College.query.filter_by(code='GCEK').first():
+        if not College.query.first():
             print("[SEED] Seeding initial Attendio database...")
             
             # 1. Default College & Geofence
@@ -675,6 +684,35 @@ def get_student_dashboard():
         },
         'subjects': subject_stats,
         'history': history
+    }), 200
+
+@app.route('/api/student/lookup', methods=['GET'])
+def lookup_student():
+    """Look up a student by PRN or Roll No to preview their verified name before marking attendance"""
+    query = request.args.get('prn', '').strip().upper()
+    if not query:
+        return jsonify({'status': 'failed', 'message': 'PRN or Roll No is required.'}), 400
+
+    student = StudentProfile.query.filter_by(prn=query).first()
+    if not student:
+        student = StudentProfile.query.filter_by(roll_no=query).first()
+    if not student and query.isdigit():
+        roll_int = int(query)
+        if 1 <= roll_int <= 77:
+            student = StudentProfile.query.filter_by(prn=f"20240716{roll_int:02d}").first()
+            if not student:
+                student = StudentProfile.query.filter_by(roll_no=f"CSTYA{roll_int}").first()
+
+    if not student:
+        return jsonify({'status': 'failed', 'message': f'Student "{query}" not found.'}), 404
+
+    return jsonify({
+        'status': 'success',
+        'prn': student.prn,
+        'roll_no': student.roll_no,
+        'name': student.user.full_name if student.user else '',
+        'class_name': student.academic_class.name if student.academic_class else '',
+        'division': student.academic_class.division if student.academic_class else 'A'
     }), 200
 
 # -------------------------------------------------------------
