@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
+import 'package:geolocator/geolocator.dart';
 
 void main() {
   runApp(const TeacherApp());
@@ -264,11 +265,78 @@ class _TeacherDashboardScreenState extends State<TeacherDashboardScreen> {
   String currentSubjectName = "";
   String currentRoom = "";
 
+  Position? _currentTeacherPosition;
+  bool _isLocating = false;
+  String _locationStatus = "Detecting phone GPS...";
+  double _activeSessionTeacherLat = 16.6631;
+  double _activeSessionTeacherLng = 74.2642;
+
   @override
   void initState() {
     super.initState();
+    _getTeacherLocation();
     fetchTodayTimetable();
     fetchAttendanceReport();
+  }
+
+  Future<Position?> _getTeacherLocation() async {
+    setState(() {
+      _isLocating = true;
+      _locationStatus = "Requesting device GPS...";
+    });
+
+    try {
+      bool serviceEnabled = await Geolocator.isLocationServiceEnabled();
+      if (!serviceEnabled) {
+        setState(() {
+          _isLocating = false;
+          _locationStatus = "GPS disabled on device.";
+        });
+        return null;
+      }
+
+      LocationPermission permission = await Geolocator.checkPermission();
+      if (permission == LocationPermission.denied) {
+        permission = await Geolocator.requestPermission();
+        if (permission == LocationPermission.denied) {
+          setState(() {
+            _isLocating = false;
+            _locationStatus = "GPS permission denied.";
+          });
+          return null;
+        }
+      }
+
+      if (permission == LocationPermission.deniedForever) {
+        setState(() {
+          _isLocating = false;
+          _locationStatus = "GPS permission permanently denied.";
+        });
+        return null;
+      }
+
+      final position = await Geolocator.getCurrentPosition(
+        locationSettings: const LocationSettings(
+          accuracy: LocationAccuracy.high,
+          timeLimit: Duration(seconds: 10),
+        ),
+      );
+
+      setState(() {
+        _currentTeacherPosition = position;
+        _isLocating = false;
+        _locationStatus = "GPS Locked: ±${position.accuracy.toStringAsFixed(1)}m";
+      });
+      return position;
+    } catch (e) {
+      final lastPos = await Geolocator.getLastKnownPosition();
+      setState(() {
+        _currentTeacherPosition = lastPos;
+        _isLocating = false;
+        _locationStatus = lastPos != null ? "Using cached GPS" : "GPS detection error";
+      });
+      return lastPos;
+    }
   }
 
   @override
@@ -304,6 +372,11 @@ class _TeacherDashboardScreenState extends State<TeacherDashboardScreen> {
     });
 
     try {
+      final pos = _currentTeacherPosition ?? await _getTeacherLocation();
+
+      final double teacherLat = pos?.latitude ?? 16.6631;
+      final double teacherLng = pos?.longitude ?? 74.2642;
+
       final headers = {'Content-Type': 'application/json'};
       if (AppConfig.authToken != null) {
         headers['Authorization'] = 'Bearer ${AppConfig.authToken}';
@@ -313,8 +386,8 @@ class _TeacherDashboardScreenState extends State<TeacherDashboardScreen> {
         'slot_id': selectedSlot?['id'],
         'subject_id': selectedSlot?['subject_id'],
         'proximity_radius': 50.0,
-        'teacher_lat': 16.6631,
-        'teacher_lng': 74.2642
+        'teacher_lat': teacherLat,
+        'teacher_lng': teacherLng
       };
 
       final response = await http.post(
@@ -332,9 +405,11 @@ class _TeacherDashboardScreenState extends State<TeacherDashboardScreen> {
           secondsRemaining = data['valid_for_seconds'] ?? 80;
           currentSubjectName = data['subject_name'] ?? '';
           currentRoom = data['room'] ?? '';
+          _activeSessionTeacherLat = teacherLat;
+          _activeSessionTeacherLng = teacherLng;
           isSessionActive = true;
         });
-        showSnackBar('Attendance Session Started for $currentSubjectName!');
+        showSnackBar('Attendance Session Started! 50m radius locked to this phone.');
         startQRRotationPoll();
         fetchAttendanceReport();
       } else {
@@ -565,20 +640,53 @@ class _TeacherDashboardScreenState extends State<TeacherDashboardScreen> {
                           const SizedBox(height: 10),
                         ],
                         Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
                           decoration: BoxDecoration(
-                            color: Colors.green.shade50,
-                            borderRadius: BorderRadius.circular(8),
-                            border: Border.all(color: Colors.green.shade200),
+                            color: _currentTeacherPosition != null ? Colors.green.shade50 : Colors.amber.shade50,
+                            borderRadius: BorderRadius.circular(10),
+                            border: Border.all(
+                              color: _currentTeacherPosition != null ? Colors.green.shade300 : Colors.amber.shade300,
+                            ),
                           ),
                           child: Row(
-                            mainAxisSize: MainAxisSize.min,
-                            children: const [
-                              Icon(Icons.location_on, size: 16, color: Colors.green),
-                              SizedBox(width: 4),
-                              Text(
-                                "Classroom Proximity: 50m radius around phone",
-                                style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: Colors.green),
+                            children: [
+                              Icon(
+                                _currentTeacherPosition != null ? Icons.my_location : Icons.location_searching,
+                                size: 22,
+                                color: _currentTeacherPosition != null ? Colors.green.shade800 : Colors.amber.shade900,
+                              ),
+                              const SizedBox(width: 10),
+                              Expanded(
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Text(
+                                      _currentTeacherPosition != null
+                                          ? "📍 Teacher Phone GPS: ${_currentTeacherPosition!.latitude.toStringAsFixed(5)}, ${_currentTeacherPosition!.longitude.toStringAsFixed(5)}"
+                                          : "📍 GPS Status: $_locationStatus",
+                                      style: TextStyle(
+                                        fontSize: 12,
+                                        fontWeight: FontWeight.bold,
+                                        color: _currentTeacherPosition != null ? Colors.green.shade900 : Colors.amber.shade900,
+                                      ),
+                                    ),
+                                    const Text(
+                                      "50m classroom boundary will be calculated from THIS device",
+                                      style: TextStyle(fontSize: 10.5, color: Colors.black54),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                              IconButton(
+                                icon: _isLocating
+                                    ? const SizedBox(
+                                        width: 16,
+                                        height: 16,
+                                        child: CircularProgressIndicator(strokeWidth: 2),
+                                      )
+                                    : const Icon(Icons.refresh, size: 20),
+                                tooltip: "Re-detect GPS",
+                                onPressed: _isLocating ? null : _getTeacherLocation,
                               ),
                             ],
                           ),
@@ -600,7 +708,7 @@ class _TeacherDashboardScreenState extends State<TeacherDashboardScreen> {
                       ] else ...[
                         Container(
                           padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
-                          margin: const EdgeInsets.only(bottom: 14),
+                          margin: const EdgeInsets.only(bottom: 8),
                           decoration: BoxDecoration(
                             color: Colors.indigo.shade50,
                             borderRadius: BorderRadius.circular(8),
@@ -609,6 +717,28 @@ class _TeacherDashboardScreenState extends State<TeacherDashboardScreen> {
                           child: Text(
                             "Active Lecture: $currentSubjectName (Room: $currentRoom)",
                             style: const TextStyle(fontWeight: FontWeight.bold, color: Colors.indigo),
+                          ),
+                        ),
+                        Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                          margin: const EdgeInsets.only(bottom: 12),
+                          decoration: BoxDecoration(
+                            color: Colors.green.shade50,
+                            borderRadius: BorderRadius.circular(8),
+                            border: Border.all(color: Colors.green.shade300),
+                          ),
+                          child: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              const Icon(Icons.gps_fixed, size: 16, color: Colors.green),
+                              const SizedBox(width: 6),
+                              Flexible(
+                                child: Text(
+                                  "50m Boundary Locked to this Phone (${_activeSessionTeacherLat.toStringAsFixed(4)}, ${_activeSessionTeacherLng.toStringAsFixed(4)})",
+                                  style: const TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: Colors.green),
+                                ),
+                              ),
+                            ],
                           ),
                         ),
                         Row(
