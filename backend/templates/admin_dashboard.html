@@ -14,7 +14,7 @@
             min-height: 100vh;
         }
         .sidebar {
-            width: 270px;
+            width: 275px;
             background: #0F172A;
             color: white;
             padding: 24px 16px;
@@ -114,12 +114,12 @@
         table {
             width: 100%;
             border-collapse: collapse;
-            font-size: 14px;
+            font-size: 13px;
             margin-top: 12px;
         }
         th, td {
             text-align: left;
-            padding: 12px 14px;
+            padding: 10px 12px;
             border-bottom: 1px solid #E2E8F0;
         }
         th {
@@ -137,9 +137,19 @@
             font-weight: 600;
             cursor: pointer;
             transition: background 0.2s;
+            text-decoration: none;
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
         }
         .btn:hover {
             background: #4338CA;
+        }
+        .btn-success {
+            background: #10B981;
+        }
+        .btn-success:hover {
+            background: #059669;
         }
         .btn-outline {
             background: transparent;
@@ -212,6 +222,14 @@
             padding: 20px;
             margin-bottom: 24px;
         }
+        .badge-count {
+            background: #3B82F6;
+            color: white;
+            font-size: 10px;
+            padding: 2px 6px;
+            border-radius: 10px;
+            font-weight: bold;
+        }
     </style>
 </head>
 <body>
@@ -234,21 +252,23 @@
                 <label>Password</label>
                 <input type="password" id="loginPassword" value="Admin@1234" required>
             </div>
-            <button type="submit" class="btn" style="width: 100%; padding: 12px; font-size: 15px;">🔐 Log In as Admin</button>
+            <button type="submit" class="btn" style="width: 100%; padding: 12px; font-size: 15px; justify-content: center;">🔐 Log In as Admin</button>
         </form>
     </div>
 </div>
 
 <div class="sidebar">
     <h1><span>🏫</span> Attendio</h1>
-    <div class="badge">COLLEGE ADMIN PORTAL</div>
+    <div class="badge">COLLEGE ADMIN & CLASS TEACHER</div>
 
     <a class="nav-link active" onclick="showSection('dashboard')">📊 Overview</a>
+    <a class="nav-link" onclick="showSection('master-excel')" style="color: #34D399; font-weight: 700;">📊 Master Live Sheet & Excel</a>
+    <a class="nav-link" onclick="showSection('lectures')">📚 Past Lectures & Absentees</a>
+    <a class="nav-link" onclick="showSection('reports')">📈 Defaulters List (< 50%)</a>
+    <a class="nav-link" onclick="showSection('students')">🎓 Student Roster (77)</a>
     <a class="nav-link" onclick="showSection('teachers')">👨‍🏫 Teacher Management</a>
     <a class="nav-link" onclick="showSection('subjects')">📖 Subject Management</a>
     <a class="nav-link" onclick="showSection('classes')">📅 Classes & Timetable</a>
-    <a class="nav-link" onclick="showSection('students')">🎓 Student Roster (77)</a>
-    <a class="nav-link" onclick="showSection('reports')">📈 Defaulters List (< 50%)</a>
     <a class="nav-link" onclick="showSection('geofence')">📍 Campus Geofence</a>
     <a class="nav-link" onclick="showSection('risks')">🛡️ Anti-Proxy Risk Logs</a>
 
@@ -263,7 +283,8 @@
             <h2 id="collegeTitle">Bharati Vidyapeeth College of Engineering Kolhapur</h2>
             <p style="color: #64748B; font-size: 14px;" id="collegeSub">T.Y. Computer Science & Engineering (2026-27)</p>
         </div>
-        <div>
+        <div style="display: flex; gap: 10px;">
+            <a href="/api/reports/export-master-excel" class="btn btn-success" target="_blank">📥 Download Master Excel (.xlsx)</a>
             <button class="btn btn-outline" onclick="loadDashboardData()">🔄 Refresh</button>
         </div>
     </div>
@@ -295,7 +316,163 @@
         </div>
     </div>
 
-    <!-- Section 2: Teacher Management -->
+    <!-- Section 2: Master Live Excel Sheet (Real-Time Spreadsheet) -->
+    <div id="section-master-excel" style="display: none;">
+        <div class="panel">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px;">
+                <div>
+                    <h3 style="margin: 0;">📊 Master Live Attendance Spreadsheet (All 77 Students)</h3>
+                    <p style="color: #64748B; font-size: 13px; margin-top: 4px;">
+                        ⚡ Updates in real-time as students scan QR codes. Fully permanent database storage.
+                    </p>
+                </div>
+                <div style="display: flex; gap: 10px;">
+                    <a href="/api/reports/export-master-excel" class="btn btn-success">📥 Download Month-End Excel (.xlsx)</a>
+                    <button class="btn btn-outline" onclick="loadMasterMatrix()">🔄 Refresh Live Grid</button>
+                </div>
+            </div>
+
+            <div class="grid-stats" style="margin-bottom: 20px;">
+                <div class="stat-card">
+                    <div class="label">Total Enrolled</div>
+                    <div class="value" id="matTotalStudents">77</div>
+                </div>
+                <div class="stat-card">
+                    <div class="label">Total Lectures Conducted</div>
+                    <div class="value" id="matConducted">0</div>
+                </div>
+                <div class="stat-card">
+                    <div class="label">Defaulters (< 50%)</div>
+                    <div class="value" id="matDefaulters" style="color: #DC2626;">0</div>
+                </div>
+                <div class="stat-card">
+                    <div class="label">Class Clear Status</div>
+                    <div class="value" id="matGoodStanding" style="color: #10B981;">77</div>
+                </div>
+            </div>
+
+            <div style="overflow-x: auto;">
+                <div id="masterMatrixContainer">Loading live master sheet...</div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Section 3: Past Lectures & Absentees (Permanent History) -->
+    <div id="section-lectures" style="display: none;">
+        <div class="panel">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px;">
+                <div>
+                    <h3 style="margin: 0;">📚 Past Lecture History & Absentee Inspection</h3>
+                    <p style="color: #64748B; font-size: 13px; margin-top: 4px;">
+                        Permanent historical database records. Check which students were Present or Absent for any lecture (even 6 months later).
+                    </p>
+                </div>
+                <button class="btn btn-outline" onclick="loadLectureHistory()">🔄 Refresh Lectures</button>
+            </div>
+
+            <div id="lectureInspectModal" style="display: none; background: #EEF2FF; border: 1.5px solid #6366F1; border-radius: 12px; padding: 20px; margin-bottom: 24px;">
+                <div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 12px;">
+                    <div>
+                        <h4 id="inspectTitle" style="color: #1E1B4B; font-size: 17px; font-weight: 800;">Lecture Details</h4>
+                        <p id="inspectSub" style="color: #4338CA; font-size: 13px; font-weight: 600;"></p>
+                    </div>
+                    <div style="display: flex; gap: 8px;">
+                        <a id="inspectExcelBtn" href="#" class="btn btn-success" style="font-size: 12px; padding: 6px 12px;">📥 Download Lecture Excel (.xlsx)</a>
+                        <button class="btn btn-outline" style="font-size: 12px; padding: 6px 12px;" onclick="document.getElementById('lectureInspectModal').style.display='none'">✕ Close</button>
+                    </div>
+                </div>
+
+                <div class="grid-stats" style="margin-bottom: 16px;">
+                    <div class="stat-card" style="padding: 12px;">
+                        <div class="label">Total Enrolled</div>
+                        <div class="value" id="insEnrolled" style="font-size: 18px;">77</div>
+                    </div>
+                    <div class="stat-card" style="padding: 12px;">
+                        <div class="label">Present Students</div>
+                        <div class="value" id="insPresent" style="font-size: 18px; color: #166534;">0</div>
+                    </div>
+                    <div class="stat-card" style="padding: 12px;">
+                        <div class="label">Absent Students</div>
+                        <div class="value" id="insAbsent" style="font-size: 18px; color: #DC2626;">0</div>
+                    </div>
+                    <div class="stat-card" style="padding: 12px;">
+                        <div class="label">Attendance %</div>
+                        <div class="value" id="insPct" style="font-size: 18px; color: #4338CA;">0%</div>
+                    </div>
+                </div>
+
+                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 16px;">
+                    <div style="background: white; border-radius: 8px; padding: 14px; border: 1px solid #BBF7D0;">
+                        <h5 style="color: #166534; margin-bottom: 8px; font-size: 14px;">✅ Present Students (<span id="insPresentCount">0</span>)</h5>
+                        <div id="insPresentList" style="max-height: 280px; overflow-y: auto; font-size: 12px;"></div>
+                    </div>
+                    <div style="background: white; border-radius: 8px; padding: 14px; border: 1px solid #FECACA;">
+                        <h5 style="color: #991B1B; margin-bottom: 8px; font-size: 14px;">❌ Absent Students (<span id="insAbsentCount">0</span>)</h5>
+                        <div id="insAbsentList" style="max-height: 280px; overflow-y: auto; font-size: 12px;"></div>
+                    </div>
+                </div>
+            </div>
+
+            <div id="lectureHistoryTable">Loading lecture history...</div>
+        </div>
+    </div>
+
+    <!-- Section 4: Defaulters (< 50%) & Class Teacher Analysis -->
+    <div id="section-reports" style="display: none;">
+        <div class="panel">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px;">
+                <div>
+                    <h3 style="margin: 0;">📈 Class Teacher Defaulters List (< 50%)</h3>
+                    <p style="color: #64748B; font-size: 13px; margin-top: 4px;">Criteria: Students with attendance strictly below <b>50.0%</b> are marked as Defaulters.</p>
+                </div>
+                <div style="display: flex; gap: 8px;">
+                    <a href="/api/reports/export-master-excel" class="btn btn-success">📥 Download Defaulter Notice Excel</a>
+                    <button class="btn btn-outline" onclick="loadClassTeacherData()">🔄 Refresh</button>
+                </div>
+            </div>
+
+            <div class="grid-stats" style="margin-bottom: 24px;">
+                <div class="stat-card">
+                    <div class="label">Total Enrolled</div>
+                    <div class="value" id="ctTotalStudents">77</div>
+                </div>
+                <div class="stat-card">
+                    <div class="label">Lectures Conducted</div>
+                    <div class="value" id="ctConducted">0</div>
+                </div>
+                <div class="stat-card">
+                    <div class="label">Defaulters (< 50%)</div>
+                    <div class="value" id="ctDefaulterCount" style="color: #DC2626;">0</div>
+                </div>
+                <div class="stat-card">
+                    <div class="label">Good Standing (≥ 50%)</div>
+                    <div class="value" id="ctGoodStanding" style="color: #10B981;">77</div>
+                </div>
+            </div>
+
+            <h4 style="color: #DC2626; margin-bottom: 8px;">🚨 Defaulters List (< 50% Attendance)</h4>
+            <div id="defaultersTable" style="margin-bottom: 32px;">Loading defaulters...</div>
+
+            <h4 style="color: #1E293B; margin-bottom: 8px;">📊 Complete Student Ledger (Roll 1 to 77) with Subject Breakdown</h4>
+            <div id="fullLedgerTable">Loading full ledger...</div>
+        </div>
+    </div>
+
+    <!-- Section 5: Student Roster -->
+    <div id="section-students" style="display: none;">
+        <div class="panel">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;">
+                <div>
+                    <h3 style="margin: 0;">🎓 Class Roster (77 Students)</h3>
+                    <p style="color: #64748B; font-size: 13px;">Bharati Vidyapeeth T.Y. CSE Div-A (Roll 1 to 77 | PRN 2024071601 to 2024071677)</p>
+                </div>
+                <input type="text" id="studentSearchInput" placeholder="🔍 Search by PRN, Roll No or Name..." onkeyup="filterStudentsTable()" style="padding: 8px 12px; border: 1px solid #CBD5E1; border-radius: 6px; width: 280px;">
+            </div>
+            <div id="studentsListTable">Loading students...</div>
+        </div>
+    </div>
+
+    <!-- Section 6: Teacher Management -->
     <div id="section-teachers" style="display: none;">
         <div class="panel">
             <h3>➕ Add New Faculty Member</h3>
@@ -342,7 +519,7 @@
         </div>
     </div>
 
-    <!-- Section 3: Subject Management -->
+    <!-- Section 7: Subject Management -->
     <div id="section-subjects" style="display: none;">
         <div class="panel">
             <h3>➕ Add New Academic Subject</h3>
@@ -373,7 +550,7 @@
         </div>
     </div>
 
-    <!-- Section 4: Classes & Timetable -->
+    <!-- Section 8: Classes & Timetable -->
     <div id="section-classes" style="display: none;">
         <div class="panel">
             <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px;">
@@ -387,59 +564,7 @@
         </div>
     </div>
 
-    <!-- Section 5: Student Roster -->
-    <div id="section-students" style="display: none;">
-        <div class="panel">
-            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;">
-                <div>
-                    <h3 style="margin: 0;">🎓 Class Roster (77 Students)</h3>
-                    <p style="color: #64748B; font-size: 13px;">Bharati Vidyapeeth T.Y. CSE Div-A (Roll 1 to 77 | PRN 2024071601 to 2024071677)</p>
-                </div>
-                <input type="text" id="studentSearchInput" placeholder="🔍 Search by PRN, Roll No or Name..." onkeyup="filterStudentsTable()" style="padding: 8px 12px; border: 1px solid #CBD5E1; border-radius: 6px; width: 280px;">
-            </div>
-            <div id="studentsListTable">Loading students...</div>
-        </div>
-    </div>
-
-    <!-- Section 6: Defaulters (< 50%) & Class Teacher Analysis -->
-    <div id="section-reports" style="display: none;">
-        <div class="panel">
-            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px;">
-                <div>
-                    <h3 style="margin: 0;">📈 Class Teacher Attendance Analysis & Defaulter List</h3>
-                    <p style="color: #64748B; font-size: 13px; margin-top: 4px;">Criteria: Students with attendance strictly below <b>50%</b> are classified as Defaulters.</p>
-                </div>
-                <button class="btn btn-outline" onclick="loadClassTeacherData()">🔄 Refresh Analysis</button>
-            </div>
-
-            <div class="grid-stats" style="margin-bottom: 24px;">
-                <div class="stat-card">
-                    <div class="label">Total Enrolled</div>
-                    <div class="value" id="ctTotalStudents">77</div>
-                </div>
-                <div class="stat-card">
-                    <div class="label">Lectures Conducted</div>
-                    <div class="value" id="ctConducted">0</div>
-                </div>
-                <div class="stat-card">
-                    <div class="label">Defaulters (< 50%)</div>
-                    <div class="value" id="ctDefaulterCount" style="color: #DC2626;">0</div>
-                </div>
-                <div class="stat-card">
-                    <div class="label">Good Standing (≥ 50%)</div>
-                    <div class="value" id="ctGoodStanding" style="color: #10B981;">77</div>
-                </div>
-            </div>
-
-            <h4 style="color: #DC2626; margin-bottom: 8px;">🚨 Defaulters List (< 50% Attendance)</h4>
-            <div id="defaultersTable" style="margin-bottom: 32px;">Loading defaulters...</div>
-
-            <h4 style="color: #1E293B; margin-bottom: 8px;">📊 Complete Student Ledger (Roll 1 to 77) with Subject Breakdown</h4>
-            <div id="fullLedgerTable">Loading full ledger...</div>
-        </div>
-    </div>
-
-    <!-- Section 7: Campus Geofence -->
+    <!-- Section 9: Campus Geofence -->
     <div id="section-geofence" style="display: none;">
         <div class="panel">
             <h3>Campus GPS Geofencing Configuration</h3>
@@ -471,7 +596,7 @@
         </div>
     </div>
 
-    <!-- Section 8: Anti-Proxy Risk Logs -->
+    <!-- Section 10: Anti-Proxy Risk Logs -->
     <div id="section-risks" style="display: none;">
         <div class="panel">
             <h3>🛡️ Automated Proxy Risk Alerts</h3>
@@ -529,7 +654,7 @@
     }
 
     function showSection(name) {
-        const sections = ['dashboard', 'teachers', 'subjects', 'classes', 'students', 'reports', 'geofence', 'risks'];
+        const sections = ['dashboard', 'master-excel', 'lectures', 'reports', 'students', 'teachers', 'subjects', 'classes', 'geofence', 'risks'];
         sections.forEach(s => {
             const el = document.getElementById('section-' + s);
             if (el) el.style.display = (s === name) ? 'block' : 'none';
@@ -538,6 +663,8 @@
         document.querySelectorAll('.nav-link').forEach(link => link.classList.remove('active'));
         if (event && event.target) event.target.classList.add('active');
 
+        if (name === 'master-excel') loadMasterMatrix();
+        if (name === 'lectures') loadLectureHistory();
         if (name === 'classes') loadWeeklyTimetable();
         if (name === 'subjects') loadSubjects();
         if (name === 'reports') loadClassTeacherData();
@@ -569,6 +696,168 @@
             }
         } catch (e) {
             console.error(e);
+        }
+    }
+
+    // --- Master Matrix (Live Spreadsheet) ---
+    async function loadMasterMatrix() {
+        const container = document.getElementById('masterMatrixContainer');
+        container.innerHTML = "<p style='color:#64748B;'>Loading live master attendance spreadsheet...</p>";
+        try {
+            const res = await fetch('/api/reports/master-matrix');
+            const data = await res.json();
+            if (data.status === 'success') {
+                document.getElementById('matTotalStudents').innerText = data.total_students;
+                document.getElementById('matConducted').innerText = data.total_conducted_sessions;
+                document.getElementById('matDefaulters').innerText = data.defaulters_count;
+                document.getElementById('matGoodStanding').innerText = data.total_students - data.defaulters_count;
+
+                const subjects = data.subjects || [];
+                let html = `<table>
+                    <thead>
+                        <tr>
+                            <th>Roll</th>
+                            <th>PRN</th>
+                            <th>Student Full Name</th>`;
+                subjects.forEach(sub => {
+                    html += `<th>${sub.code}</th>`;
+                });
+                html += `<th>Total Attended</th>
+                         <th>Conducted</th>
+                         <th>Attendance %</th>
+                         <th>Status</th>
+                        </tr>
+                    </thead>
+                    <tbody>`;
+
+                data.matrix.forEach(row => {
+                    const isDef = row.is_defaulter;
+                    html += `<tr>
+                        <td><strong>${row.roll_no}</strong></td>
+                        <td><code>${row.prn}</code></td>
+                        <td><b>${row.full_name}</b></td>`;
+
+                    subjects.forEach(sub => {
+                        const sStat = row.subjects[sub.code] || { attended: 0, conducted: 0, percentage: 0 };
+                        const subDef = sStat.percentage < 50;
+                        html += `<td style="color: ${subDef ? '#DC2626' : '#166534'}; font-size: 12px;">
+                            ${sStat.attended}/${sStat.conducted} (${sStat.percentage}%)
+                        </td>`;
+                    });
+
+                    html += `
+                        <td style="font-weight: 700;">${row.total_attended}</td>
+                        <td>${row.total_conducted}</td>
+                        <td style="font-weight: 800; font-size: 14px; color: ${isDef ? '#DC2626' : '#166534'};">${row.percentage}%</td>
+                        <td><span class="pill ${isDef ? 'pill-danger' : 'pill-success'}">${isDef ? 'DEFAULTER (<50%)' : 'GOOD'}</span></td>
+                    </tr>`;
+                });
+
+                html += `</tbody></table>`;
+                container.innerHTML = html;
+            }
+        } catch (e) {
+            container.innerHTML = "<p style='color: red;'>Failed to load master matrix.</p>";
+        }
+    }
+
+    // --- Historical Lecture Log & Absentees ---
+    async function loadLectureHistory() {
+        const container = document.getElementById('lectureHistoryTable');
+        container.innerHTML = "<p style='color:#64748B;'>Loading historical lectures from permanent database...</p>";
+        try {
+            const res = await fetch('/api/lectures/history');
+            const data = await res.json();
+            if (data.status === 'success') {
+                const lectures = data.lectures || [];
+                if (!lectures.length) {
+                    container.innerHTML = "<p style='color:#64748B;'>No lectures recorded yet in database.</p>";
+                    return;
+                }
+
+                let html = `<table>
+                    <thead>
+                        <tr>
+                            <th>Date & IST Time</th>
+                            <th>Subject</th>
+                            <th>Faculty</th>
+                            <th>Enrolled</th>
+                            <th>Present</th>
+                            <th>Absent</th>
+                            <th>Attendance %</th>
+                            <th>Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody>`;
+
+                lectures.forEach(l => {
+                    html += `<tr>
+                        <td><b>${l.started_at_ist || l.date + ' ' + l.time}</b></td>
+                        <td><strong>${l.subject_name}</strong> (${l.subject_code})</td>
+                        <td>${l.teacher_name}</td>
+                        <td>${l.total_enrolled}</td>
+                        <td><span style="color:#166534; font-weight:700;">${l.present_count} Present</span></td>
+                        <td><span style="color:#DC2626; font-weight:700;">${l.absent_count} Absent</span></td>
+                        <td><b>${l.attendance_percentage}%</b></td>
+                        <td>
+                            <button class="btn btn-outline" style="font-size: 11px; padding: 4px 8px;" onclick="inspectLecture('${l.session_id}')">🔍 Inspect Absentees</button>
+                            <a href="/api/reports/session/${l.session_id}/export-excel" class="btn btn-success" style="font-size: 11px; padding: 4px 8px;">📥 Excel</a>
+                        </td>
+                    </tr>`;
+                });
+
+                html += `</tbody></table>`;
+                container.innerHTML = html;
+            }
+        } catch (e) {
+            container.innerHTML = "<p style='color: red;'>Failed to load lecture history.</p>";
+        }
+    }
+
+    async function inspectLecture(sessionId) {
+        const modal = document.getElementById('lectureInspectModal');
+        modal.style.display = 'block';
+        window.scrollTo({ top: modal.offsetTop - 50, behavior: 'smooth' });
+
+        try {
+            const res = await fetch(`/api/lectures/${sessionId}/details`);
+            const data = await res.json();
+            if (data.status === 'success') {
+                const d = data.details;
+                document.getElementById('inspectTitle').innerText = `${d.session.subject_name} (${d.session.subject_code}) - Lecture Details`;
+                document.getElementById('inspectSub').innerText = `Faculty: ${d.session.teacher_name} | Started At: ${d.session.started_at_ist || d.session.started_at} IST | Room: LH2`;
+                document.getElementById('inspectExcelBtn').href = `/api/reports/session/${sessionId}/export-excel`;
+
+                document.getElementById('insEnrolled').innerText = d.total_enrolled;
+                document.getElementById('insPresent').innerText = d.total_present;
+                document.getElementById('insAbsent').innerText = d.total_absent;
+                document.getElementById('insPct').innerText = `${d.attendance_percentage}%`;
+
+                // Present List
+                document.getElementById('insPresentCount').innerText = d.present_students.length;
+                let pHtml = '<ol style="padding-left: 20px;">';
+                d.present_students.forEach(st => {
+                    pHtml += `<li style="margin-bottom: 6px;">
+                        <b>${st.roll_no || '-'}</b> | <code>${st.prn}</code> - ${st.student_name || 'Student'} 
+                        <span style="color: #64748B; font-size: 11px;">(Time: ${st.timestamp || '-'}, Dist: ${st.distance_meters}m)</span>
+                    </li>`;
+                });
+                pHtml += '</ol>';
+                document.getElementById('insPresentList').innerHTML = d.present_students.length ? pHtml : '<p style="color: grey;">Zero students marked present.</p>';
+
+                // Absent List
+                document.getElementById('insAbsentCount').innerText = d.absent_students.length;
+                let aHtml = '<ol style="padding-left: 20px;">';
+                d.absent_students.forEach(st => {
+                    aHtml += `<li style="margin-bottom: 6px; color: #991B1B;">
+                        <b>${st.roll_no || '-'}</b> | <code>${st.prn}</code> - <b>${st.full_name || 'Student'}</b>
+                    </li>`;
+                });
+                aHtml += '</ol>';
+                document.getElementById('insAbsentList').innerHTML = d.absent_students.length ? aHtml : '<p style="color: green;">All students were present!</p>';
+            }
+        } catch (e) {
+            alert('Failed to inspect lecture details.');
         }
     }
 
@@ -830,9 +1119,9 @@
                 <td><strong>${s.subject_name}</strong> (${s.subject_code})</td>
                 <td>${s.class_name} Div ${s.division}</td>
                 <td>${s.teacher_name}</td>
-                <td>${s.started_at}</td>
+                <td>${s.started_at_ist || s.started_at}</td>
                 <td><span class="pill ${s.status === 'ACTIVE' ? 'pill-success' : 'pill-warning'}">${s.status}</span></td>
-                <td>${s.attendance_count}</td>
+                <td><b>${s.attendance_count} Present</b></td>
             </tr>`;
         });
         html += "</table>";
@@ -898,7 +1187,6 @@
         }
     }
 
-    // Auto check on page ready
     window.onload = function() {
         checkAuth();
         loadDashboardData();

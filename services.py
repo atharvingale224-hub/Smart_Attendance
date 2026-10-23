@@ -404,19 +404,31 @@ class ReportService:
             
         wb = Workbook()
         ws = wb.active
-        ws.title = "Attendance Summary"
+        ws.title = "Lecture Attendance"
         
-        header_fill = PatternFill(start_color="4F46E5", end_color="4F46E5", fill_type="solid")
+        header_fill = PatternFill(start_color="312E81", end_color="312E81", fill_type="solid")
         header_font = Font(name="Calibri", size=11, bold=True, color="FFFFFF")
         
-        ws.append(["ATTENDIO ATTENDANCE REPORT"])
-        ws.append(["Subject", f"{data['session']['subject_name']} ({data['session']['subject_code']})"])
-        ws.append(["Class", f"{data['session']['class_name']} Div {data['session']['division']}"])
-        ws.append(["Teacher", data['session']['teacher_name']])
-        ws.append(["Attendance %", f"{data['attendance_percentage']}%"])
+        green_fill = PatternFill(start_color="DCFCE7", end_color="DCFCE7", fill_type="solid")
+        green_font = Font(name="Calibri", size=10, bold=True, color="166534")
+        red_fill = PatternFill(start_color="FEE2E2", end_color="FEE2E2", fill_type="solid")
+        red_font = Font(name="Calibri", size=10, bold=True, color="991B1B")
+
+        title_font = Font(name="Calibri", size=14, bold=True, color="1E1B4B")
+        sub_font = Font(name="Calibri", size=11, bold=True, color="4338CA")
+
+        ws.append(["BHARATI VIDYAPEETH COLLEGE OF ENGINEERING KOLHAPUR"])
+        ws.append([f"Lecture: {data['session']['subject_name']} ({data['session']['subject_code']}) | Class: {data['session']['class_name']} Div {data['session']['division']}"])
+        ws.append([f"Faculty: {data['session']['teacher_name']} | Date & Time: {data['session'].get('started_at_ist') or data['session']['started_at']} IST"])
+        ws.append([f"Total Enrolled: {data['total_enrolled']} | Present: {data['total_present']} | Absent: {data['total_absent']} | Attendance: {data['attendance_percentage']}%"])
         ws.append([])
+
+        ws.cell(row=1, column=1).font = title_font
+        ws.cell(row=2, column=1).font = sub_font
+        ws.cell(row=3, column=1).font = sub_font
+        ws.cell(row=4, column=1).font = Font(name="Calibri", size=11, bold=True, color="166534")
         
-        table_headers = ["Status", "PRN", "Roll No", "Student Name", "Time", "Distance (m)", "Accuracy (m)"]
+        table_headers = ["Status", "Roll No", "PRN", "Student Full Name", "Scan Time (IST)", "GPS Distance (m)", "Accuracy (m)"]
         ws.append(table_headers)
         
         header_row = ws.max_row
@@ -424,14 +436,253 @@ class ReportService:
             cell = ws.cell(row=header_row, column=col_num)
             cell.fill = header_fill
             cell.font = header_font
-            cell.alignment = Alignment(horizontal="center")
+            cell.alignment = Alignment(horizontal="center", vertical="center")
             
         for p in data['present_students']:
-            ws.append(["PRESENT", p['prn'], p.get('roll_no', ''), p.get('student_name', ''), p['timestamp'], p['distance_meters'], p['accuracy_meters']])
+            ws.append(["PRESENT", p.get('roll_no', '-'), p['prn'], p.get('student_name', ''), p.get('timestamp', ''), f"{p.get('distance_meters', 0)} m", f"±{p.get('accuracy_meters', 10)} m"])
+            curr = ws.max_row
+            ws.cell(row=curr, column=1).fill = green_fill
+            ws.cell(row=curr, column=1).font = green_font
             
         for a in data['absent_students']:
-            ws.append(["ABSENT", a['prn'], a.get('roll_no', ''), a.get('full_name', ''), "-", "-", "-"])
+            ws.append(["ABSENT", a.get('roll_no', '-'), a['prn'], a.get('full_name', ''), "-", "-", "-"])
+            curr = ws.max_row
+            ws.cell(row=curr, column=1).fill = red_fill
+            ws.cell(row=curr, column=1).font = red_font
+
+        for col in ws.columns:
+            max_len = max(len(str(cell.value or '')) for cell in col)
+            ws.column_dimensions[col[0].column_letter].width = max(max_len + 3, 12)
             
+        output = io.BytesIO()
+        wb.save(output)
+        output.seek(0)
+        return output.getvalue()
+
+    @staticmethod
+    def export_master_excel(class_id=None):
+        college = College.query.filter_by(code='BVCOEK').first() or College.query.first()
+        college_id = college.id if college else None
+
+        if not class_id:
+            ac_class = AcademicClass.query.filter_by(college_id=college_id).first()
+        else:
+            ac_class = db.session.get(AcademicClass, class_id)
+
+        if not ac_class:
+            return None
+
+        from models import Subject
+        subjects = Subject.query.filter_by(department_id=ac_class.department_id, semester=ac_class.semester).all()
+        if not subjects:
+            subjects = Subject.query.filter_by(college_id=college_id).all()
+
+        conducted_sessions = LectureSession.query.filter_by(class_id=ac_class.id).order_by(LectureSession.started_at.desc()).all()
+        total_conducted = len(conducted_sessions)
+
+        subject_sessions = {}
+        for sub in subjects:
+            sub_sess = [s.id for s in conducted_sessions if s.subject_id == sub.id]
+            subject_sessions[sub.id] = sub_sess
+
+        students = StudentProfile.query.filter_by(class_id=ac_class.id).all()
+        def roll_sort_key(st):
+            r = st.roll_no or ""
+            num_part = ''.join(filter(str.isdigit, r))
+            return int(num_part) if num_part else 999
+        students.sort(key=roll_sort_key)
+
+        wb = Workbook()
+
+        # ==========================================
+        # SHEET 1: Master Cumulative Attendance Sheet
+        # ==========================================
+        ws1 = wb.active
+        ws1.title = "Master Attendance Sheet"
+
+        title_font = Font(name="Calibri", size=15, bold=True, color="1E1B4B")
+        sub_font = Font(name="Calibri", size=11, bold=True, color="4338CA")
+        info_font = Font(name="Calibri", size=10, italic=True, color="64748B")
+        header_font = Font(name="Calibri", size=11, bold=True, color="FFFFFF")
+        header_fill = PatternFill(start_color="312E81", end_color="312E81", fill_type="solid")
+        
+        green_fill = PatternFill(start_color="DCFCE7", end_color="DCFCE7", fill_type="solid")
+        green_font = Font(name="Calibri", size=10, bold=True, color="166534")
+        red_fill = PatternFill(start_color="FEE2E2", end_color="FEE2E2", fill_type="solid")
+        red_font = Font(name="Calibri", size=10, bold=True, color="991B1B")
+
+        now_ist = get_ist_now().strftime("%Y-%m-%d %I:%M %p")
+        ws1.append(["BHARATI VIDYAPEETH COLLEGE OF ENGINEERING KOLHAPUR"])
+        ws1.append([f"Department of Computer Science & Engineering | {ac_class.name} (Div-{ac_class.division})"])
+        ws1.append(["MASTER CUMULATIVE ATTENDANCE LEDGER & DEFAULTER ANALYSIS"])
+        ws1.append([f"Report Generated: {now_ist} IST | Defaulter Rule: Attendance strictly below 50.0%"])
+        ws1.append([])
+
+        ws1.cell(row=1, column=1).font = title_font
+        ws1.cell(row=2, column=1).font = sub_font
+        ws1.cell(row=3, column=1).font = sub_font
+        ws1.cell(row=4, column=1).font = info_font
+
+        headers = ["Sr", "Roll No", "PRN", "Student Full Name"]
+        for sub in subjects:
+            headers.append(f"{sub.code} ({sub.name[:12]})")
+        headers.extend(["Total Attended", "Total Conducted", "Attendance %", "Defaulter Status (<50%)"])
+
+        ws1.append(headers)
+        h_row = ws1.max_row
+        for col_idx in range(1, len(headers) + 1):
+            c = ws1.cell(row=h_row, column=col_idx)
+            c.fill = header_fill
+            c.font = header_font
+            c.alignment = Alignment(horizontal="center", vertical="center", wrap_text=True)
+
+        defaulters_list = []
+
+        for idx, st in enumerate(students, 1):
+            records = AttendanceRecord.query.filter_by(student_id=st.id).all()
+            attended_session_ids = set(r.session_id for r in records)
+            total_att = len(attended_session_ids)
+            pct = round((total_att / total_conducted * 100.0), 1) if total_conducted > 0 else 0.0
+            is_defaulter = pct < 50.0
+
+            row_data = [
+                idx,
+                st.roll_no or "-",
+                st.prn,
+                st.user.full_name if st.user else "Student"
+            ]
+
+            for sub in subjects:
+                sub_sess = subject_sessions.get(sub.id, [])
+                sub_conducted = len(sub_sess)
+                sub_attended = len(attended_session_ids.intersection(sub_sess))
+                sub_pct = round((sub_attended / sub_conducted * 100.0), 0) if sub_conducted > 0 else 0
+                row_data.append(f"{sub_attended}/{sub_conducted} ({int(sub_pct)}%)")
+
+            row_data.extend([
+                total_att,
+                total_conducted,
+                f"{pct}%",
+                "DEFAULTER" if is_defaulter else "GOOD STANDING"
+            ])
+
+            ws1.append(row_data)
+            curr_row = ws1.max_row
+
+            pct_cell = ws1.cell(row=curr_row, column=len(headers) - 1)
+            status_cell = ws1.cell(row=curr_row, column=len(headers))
+            
+            if is_defaulter:
+                pct_cell.fill = red_fill
+                pct_cell.font = red_font
+                status_cell.fill = red_fill
+                status_cell.font = red_font
+                defaulters_list.append({
+                    'roll_no': st.roll_no,
+                    'prn': st.prn,
+                    'name': st.user.full_name if st.user else "Student",
+                    'total_att': total_att,
+                    'total_conducted': total_conducted,
+                    'pct': pct
+                })
+            else:
+                pct_cell.fill = green_fill
+                pct_cell.font = green_font
+                status_cell.fill = green_fill
+                status_cell.font = green_font
+
+        for col in ws1.columns:
+            max_len = max(len(str(cell.value or '')) for cell in col)
+            ws1.column_dimensions[col[0].column_letter].width = max(max_len + 3, 11)
+
+        # ==========================================
+        # SHEET 2: Defaulters Notice List (< 50%)
+        # ==========================================
+        ws2 = wb.create_sheet(title="Defaulters Notice (<50%)")
+        ws2.append(["OFFICIAL NOTICE: ATTENDANCE DEFAULTERS LIST (BELOW 50%)"])
+        ws2.append([f"College: {college.name} | Class: {ac_class.name} (Div-{ac_class.division})"])
+        ws2.append([f"As on: {now_ist} IST | Total Defaulters: {len(defaulters_list)} of {len(students)} Students"])
+        ws2.append([])
+
+        ws2.cell(row=1, column=1).font = Font(name="Calibri", size=14, bold=True, color="991B1B")
+        ws2.cell(row=2, column=1).font = sub_font
+        ws2.cell(row=3, column=1).font = Font(name="Calibri", size=11, bold=True, color="991B1B")
+
+        d_headers = ["Sr", "Roll No", "PRN", "Student Full Name", "Lectures Attended", "Total Conducted", "Attendance %", "Defaulter Action"]
+        ws2.append(d_headers)
+        d_h_row = ws2.max_row
+        d_fill = PatternFill(start_color="991B1B", end_color="991B1B", fill_type="solid")
+        for col_idx in range(1, len(d_headers) + 1):
+            c = ws2.cell(row=d_h_row, column=col_idx)
+            c.fill = d_fill
+            c.font = header_font
+            c.alignment = Alignment(horizontal="center")
+
+        for idx, d in enumerate(defaulters_list, 1):
+            ws2.append([
+                idx,
+                d['roll_no'],
+                d['prn'],
+                d['name'],
+                d['total_att'],
+                d['total_conducted'],
+                f"{d['pct']}%",
+                "Strict Warning / Parent Call Required"
+            ])
+            r_idx = ws2.max_row
+            ws2.cell(row=r_idx, column=7).fill = red_fill
+            ws2.cell(row=r_idx, column=7).font = red_font
+
+        ws2.append([])
+        ws2.append(["Class Teacher Signature: _____________________", "", "", "HOD / Principal Signature: _____________________"])
+
+        for col in ws2.columns:
+            max_len = max(len(str(cell.value or '')) for cell in col)
+            ws2.column_dimensions[col[0].column_letter].width = max(max_len + 3, 12)
+
+        # ==========================================
+        # SHEET 3: Chronological Lecture-by-Lecture Log
+        # ==========================================
+        ws3 = wb.create_sheet(title="Daily Lecture Log")
+        ws3.append(["CHRONOLOGICAL LECTURE LOG & ATTENDANCE SUMMARY"])
+        ws3.append([f"Class: {ac_class.name} Div-{ac_class.division}"])
+        ws3.append([])
+
+        log_headers = ["Sr", "Date & IST Time", "Subject", "Course Code", "Faculty Name", "Room", "Enrolled", "Present", "Absent", "Attendance %", "Status"]
+        ws3.append(log_headers)
+        l_h_row = ws3.max_row
+        l_fill = PatternFill(start_color="4338CA", end_color="4338CA", fill_type="solid")
+        for col_idx in range(1, len(log_headers) + 1):
+            c = ws3.cell(row=l_h_row, column=col_idx)
+            c.fill = l_fill
+            c.font = header_font
+            c.alignment = Alignment(horizontal="center")
+
+        total_enrolled = len(students)
+        for idx, sess in enumerate(conducted_sessions, 1):
+            present_cnt = len(sess.attendance_records) if sess.attendance_records else 0
+            absent_cnt = max(0, total_enrolled - present_cnt)
+            pct = round((present_cnt / total_enrolled * 100.0), 1) if total_enrolled > 0 else 0.0
+            time_str = sess.started_at.strftime("%Y-%m-%d %I:%M %p") if sess.started_at else "-"
+
+            ws3.append([
+                idx,
+                time_str,
+                sess.subject.name if sess.subject else "-",
+                sess.subject.code if sess.subject else "-",
+                sess.teacher.user.full_name if sess.teacher and sess.teacher.user else "-",
+                "LH2",
+                total_enrolled,
+                present_cnt,
+                absent_cnt,
+                f"{pct}%",
+                sess.status
+            ])
+
+        for col in ws3.columns:
+            max_len = max(len(str(cell.value or '')) for cell in col)
+            ws3.column_dimensions[col[0].column_letter].width = max(max_len + 3, 12)
+
         output = io.BytesIO()
         wb.save(output)
         output.seek(0)

@@ -958,22 +958,50 @@ class _TeacherDashboardScreenState extends State<TeacherDashboardScreen> {
               ),
               const SizedBox(height: 24),
 
-              // Live Attendance Roster with IST Time & Student Names
-              Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  Text(
-                    '📋 Present Students (${attendanceList.length})',
-                    style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Colors.indigo),
+              // Live Attendance Roster with Real-Time Present & Absent Counters
+              Card(
+                color: Colors.white,
+                elevation: 2,
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                child: Padding(
+                  padding: const EdgeInsets.all(14.0),
+                  child: Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Row(
+                            children: [
+                              const Text('📋 Live Roster: ', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14)),
+                              Container(
+                                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                                decoration: BoxDecoration(color: Colors.green.shade100, borderRadius: BorderRadius.circular(8)),
+                                child: Text('✅ ${attendanceList.length} Present', style: TextStyle(color: Colors.green.shade900, fontWeight: FontWeight.bold, fontSize: 12)),
+                              ),
+                              const SizedBox(width: 6),
+                              Container(
+                                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                                decoration: BoxDecoration(color: Colors.red.shade100, borderRadius: BorderRadius.circular(8)),
+                                child: Text('❌ ${77 - attendanceList.length} Absent', style: TextStyle(color: Colors.red.shade900, fontWeight: FontWeight.bold, fontSize: 12)),
+                              ),
+                            ],
+                          ),
+                          const SizedBox(height: 4),
+                          const Text('Total: 77 Enrolled | T.Y. CSE Div-A', style: TextStyle(color: Colors.grey, fontSize: 11)),
+                        ],
+                      ),
+                      IconButton(
+                        onPressed: fetchAttendanceReport,
+                        icon: const Icon(Icons.sync, color: Colors.indigo),
+                        tooltip: 'Refresh Roster',
+                      )
+                    ],
                   ),
-                  IconButton(
-                    onPressed: fetchAttendanceReport,
-                    icon: const Icon(Icons.sync, color: Colors.indigo),
-                    tooltip: 'Refresh Roster',
-                  )
-                ],
+                ),
               ),
               const SizedBox(height: 10),
+
               attendanceList.isEmpty
                   ? const Center(
                       child: Padding(
@@ -1036,7 +1064,7 @@ class _TeacherDashboardScreenState extends State<TeacherDashboardScreen> {
 }
 
 // -------------------------------------------------------------
-// CLASS TEACHER PORTAL & DEFAULTER ANALYSIS SCREEN (<50%)
+// CLASS TEACHER PORTAL, DEFAULTER & HISTORICAL LECTURES SCREEN
 // -------------------------------------------------------------
 class ClassTeacherPortalScreen extends StatefulWidget {
   const ClassTeacherPortalScreen({super.key});
@@ -1055,13 +1083,17 @@ class _ClassTeacherPortalScreenState extends State<ClassTeacherPortalScreen> wit
   List<dynamic> _defaulters = [];
   List<dynamic> _filteredStudents = [];
   List<dynamic> _filteredDefaulters = [];
+  List<dynamic> _lectureHistory = [];
+  bool _isLoadingLectures = false;
+
   final TextEditingController _searchController = TextEditingController();
 
   @override
   void initState() {
     super.initState();
-    _tabController = TabController(length: 2, vsync: this);
+    _tabController = TabController(length: 3, vsync: this);
     _fetchClassTeacherData();
+    _fetchLectureHistory();
   }
 
   @override
@@ -1102,6 +1134,33 @@ class _ClassTeacherPortalScreenState extends State<ClassTeacherPortalScreen> wit
         _errorMessage = 'Error connecting to backend server.';
         _isLoading = false;
       });
+    }
+  }
+
+  Future<void> _fetchLectureHistory() async {
+    setState(() {
+      _isLoadingLectures = true;
+    });
+
+    try {
+      final res = await http.get(
+        Uri.parse('${AppConfig.baseUrl}/api/lectures/history'),
+      ).timeout(const Duration(seconds: 30));
+
+      if (res.statusCode == 200) {
+        final data = jsonDecode(res.body);
+        setState(() {
+          _lectureHistory = data['lectures'] ?? [];
+        });
+      }
+    } catch (e) {
+      // ignore
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isLoadingLectures = false;
+        });
+      }
     }
   }
 
@@ -1310,11 +1369,210 @@ class _ClassTeacherPortalScreenState extends State<ClassTeacherPortalScreen> wit
     );
   }
 
+  void _showLectureDetailsModal(String sessionId) async {
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (_) => const Center(child: CircularProgressIndicator()),
+    );
+
+    try {
+      final res = await http.get(Uri.parse('${AppConfig.baseUrl}/api/lectures/$sessionId/details')).timeout(const Duration(seconds: 30));
+      if (mounted) Navigator.of(context).pop();
+
+      if (res.statusCode == 200) {
+        final data = jsonDecode(res.body)['details'];
+        if (mounted) {
+          showModalBottomSheet(
+            context: context,
+            isScrollControlled: true,
+            shape: const RoundedRectangleBorder(
+              borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+            ),
+            builder: (ctx) {
+              final present = data['present_students'] as List<dynamic>? ?? [];
+              final absent = data['absent_students'] as List<dynamic>? ?? [];
+              final session = data['session'] ?? {};
+
+              return DraggableScrollableSheet(
+                expand: false,
+                initialChildSize: 0.85,
+                maxChildSize: 0.95,
+                minChildSize: 0.5,
+                builder: (context, scrollCtrl) {
+                  return SingleChildScrollView(
+                    controller: scrollCtrl,
+                    padding: const EdgeInsets.all(20),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Center(
+                          child: Container(
+                            width: 40,
+                            height: 5,
+                            margin: const EdgeInsets.only(bottom: 14),
+                            decoration: BoxDecoration(color: Colors.grey.shade300, borderRadius: BorderRadius.circular(10)),
+                          ),
+                        ),
+                        Text(
+                          '${session['subject_name']} (${session['subject_code']})',
+                          style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+                        ),
+                        const SizedBox(height: 2),
+                        Text(
+                          'Faculty: ${session['teacher_name']} | ${session['started_at_ist'] ?? session['started_at']} IST',
+                          style: TextStyle(color: Colors.grey.shade600, fontSize: 13),
+                        ),
+                        const SizedBox(height: 14),
+                        Row(
+                          children: [
+                            Expanded(
+                              child: Container(
+                                padding: const EdgeInsets.all(12),
+                                decoration: BoxDecoration(color: Colors.green.shade50, borderRadius: BorderRadius.circular(10), border: Border.all(color: Colors.green.shade200)),
+                                child: Column(
+                                  children: [
+                                    const Text('Present', style: TextStyle(color: Colors.green, fontSize: 12, fontWeight: FontWeight.bold)),
+                                    const SizedBox(height: 2),
+                                    Text('${data['total_present']} / 77', style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Colors.green)),
+                                  ],
+                                ),
+                              ),
+                            ),
+                            const SizedBox(width: 10),
+                            Expanded(
+                              child: Container(
+                                padding: const EdgeInsets.all(12),
+                                decoration: BoxDecoration(color: Colors.red.shade50, borderRadius: BorderRadius.circular(10), border: Border.all(color: Colors.red.shade200)),
+                                child: Column(
+                                  children: [
+                                    const Text('Absent', style: TextStyle(color: Colors.red, fontSize: 12, fontWeight: FontWeight.bold)),
+                                    const SizedBox(height: 2),
+                                    Text('${data['total_absent']} / 77', style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Colors.red)),
+                                  ],
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 16),
+                        SelectableText(
+                          'Download Excel: ${AppConfig.baseUrl}/api/reports/session/$sessionId/export-excel',
+                          style: const TextStyle(color: Colors.blue, fontSize: 12, fontWeight: FontWeight.bold),
+                        ),
+                        const SizedBox(height: 20),
+                        Text('✅ Present Students (${present.length})', style: const TextStyle(fontWeight: FontWeight.bold, color: Colors.green, fontSize: 15)),
+                        const SizedBox(height: 8),
+                        if (present.isEmpty)
+                          const Text('No students marked present.', style: TextStyle(color: Colors.grey))
+                        else
+                          ListView.builder(
+                            shrinkWrap: true,
+                            physics: const NeverScrollableScrollPhysics(),
+                            itemCount: present.length,
+                            itemBuilder: (_, i) {
+                              final p = present[i];
+                              return Card(
+                                margin: const EdgeInsets.symmetric(vertical: 3),
+                                elevation: 0.5,
+                                child: ListTile(
+                                  dense: true,
+                                  leading: const CircleAvatar(radius: 14, backgroundColor: Colors.green, child: Icon(Icons.check, size: 14, color: Colors.white)),
+                                  title: Text('${p['roll_no'] ?? '-'} | ${p['student_name'] ?? p['prn']}', style: const TextStyle(fontWeight: FontWeight.bold)),
+                                  subtitle: Text('PRN: ${p['prn']} | Time: ${p['time_12h'] ?? p['timestamp']}'),
+                                  trailing: Text('${p['distance_meters']} m', style: const TextStyle(fontSize: 11, color: Colors.indigo, fontWeight: FontWeight.bold)),
+                                ),
+                              );
+                            },
+                          ),
+                        const SizedBox(height: 20),
+                        Text('❌ Absent Students (${absent.length})', style: const TextStyle(fontWeight: FontWeight.bold, color: Colors.red, fontSize: 15)),
+                        const SizedBox(height: 8),
+                        if (absent.isEmpty)
+                          const Text('Zero absentees! Full class attended.', style: TextStyle(color: Colors.green))
+                        else
+                          ListView.builder(
+                            shrinkWrap: true,
+                            physics: const NeverScrollableScrollPhysics(),
+                            itemCount: absent.length,
+                            itemBuilder: (_, i) {
+                              final a = absent[i];
+                              return Card(
+                                margin: const EdgeInsets.symmetric(vertical: 3),
+                                elevation: 0.5,
+                                color: Colors.red.shade50,
+                                child: ListTile(
+                                  dense: true,
+                                  leading: CircleAvatar(radius: 14, backgroundColor: Colors.red.shade200, child: const Icon(Icons.close, size: 14, color: Colors.red)),
+                                  title: Text('${a['roll_no'] ?? '-'} | ${a['full_name'] ?? a['prn']}', style: const TextStyle(fontWeight: FontWeight.bold, color: Colors.red)),
+                                  subtitle: Text('PRN: ${a['prn']}'),
+                                ),
+                              );
+                            },
+                          ),
+                      ],
+                    ),
+                  );
+                },
+              );
+            },
+          );
+        }
+      }
+    } catch (e) {
+      if (mounted) Navigator.of(context).pop();
+    }
+  }
+
+  void _showMasterExcelDialog() {
+    final url = '${AppConfig.baseUrl}/api/reports/export-master-excel';
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: Row(
+          children: const [
+            Icon(Icons.table_chart, color: Colors.green),
+            SizedBox(width: 8),
+            Text('Master Excel Sheet'),
+          ],
+        ),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Text(
+              'The Master Attendance Excel Sheet (.xlsx) includes:\n'
+              '• All 77 students cumulative attendance\n'
+              '• Subject-by-subject percentage (AI, CA, JP, OOMD, MDM, OE)\n'
+              '• Official Defaulter Notice list (< 50%)\n'
+              '• Chronological lecture-by-lecture log\n',
+              style: TextStyle(fontSize: 13),
+            ),
+            const SizedBox(height: 8),
+            const Text('Download Link:', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12)),
+            const SizedBox(height: 4),
+            SelectableText(url, style: const TextStyle(color: Colors.blue, fontSize: 12, fontWeight: FontWeight.bold)),
+          ],
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.of(ctx).pop(), child: const Text('Close')),
+        ],
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
         title: Text(_dashboardData != null ? '${_dashboardData!['class_name']} Defaulters (<50%)' : 'Class Teacher Defaulter Portal'),
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.file_download_outlined),
+            tooltip: 'Download Master Excel',
+            onPressed: _showMasterExcelDialog,
+          )
+        ],
         bottom: TabBar(
           controller: _tabController,
           labelColor: Colors.white,
@@ -1329,6 +1587,10 @@ class _ClassTeacherPortalScreenState extends State<ClassTeacherPortalScreen> wit
             Tab(
               icon: const Icon(Icons.groups_rounded),
               text: '👥 All Students (${_allStudents.length})',
+            ),
+            Tab(
+              icon: const Icon(Icons.history_edu_rounded),
+              text: '📚 Lectures (${_lectureHistory.length})',
             ),
           ],
         ),
@@ -1515,6 +1777,58 @@ class _ClassTeacherPortalScreenState extends State<ClassTeacherPortalScreen> wit
                                     );
                                   },
                                 ),
+
+                          // Tab 3: Chronological Lecture History & Absentees
+                          _isLoadingLectures
+                              ? const Center(child: CircularProgressIndicator())
+                              : _lectureHistory.isEmpty
+                                  ? const Center(
+                                      child: Padding(
+                                        padding: EdgeInsets.all(24.0),
+                                        child: Text('No historical lectures conducted yet.', style: TextStyle(color: Colors.grey)),
+                                      ),
+                                    )
+                                  : ListView.builder(
+                                      padding: const EdgeInsets.symmetric(horizontal: 12),
+                                      itemCount: _lectureHistory.length,
+                                      itemBuilder: (context, index) {
+                                        final l = _lectureHistory[index];
+                                        return Card(
+                                          margin: const EdgeInsets.symmetric(vertical: 4),
+                                          elevation: 1,
+                                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                                          child: ListTile(
+                                            leading: CircleAvatar(
+                                              backgroundColor: Colors.indigo.shade100,
+                                              child: const Icon(Icons.class_rounded, color: Colors.indigo),
+                                            ),
+                                            title: Text(
+                                              '${l['subject_name']} (${l['subject_code']})',
+                                              style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14),
+                                            ),
+                                            subtitle: Text(
+                                              '${l['started_at_ist'] ?? l['date']}\nFaculty: ${l['teacher_name']} | 77 Enrolled',
+                                              style: const TextStyle(fontSize: 12),
+                                            ),
+                                            trailing: Column(
+                                              mainAxisAlignment: MainAxisAlignment.center,
+                                              crossAxisAlignment: CrossAxisAlignment.end,
+                                              children: [
+                                                Text(
+                                                  '${l['present_count']} / 77',
+                                                  style: const TextStyle(color: Colors.green, fontWeight: FontWeight.bold, fontSize: 13),
+                                                ),
+                                                Text(
+                                                  '${l['absent_count']} Absent',
+                                                  style: const TextStyle(color: Colors.red, fontSize: 11, fontWeight: FontWeight.bold),
+                                                ),
+                                              ],
+                                            ),
+                                            onTap: () => _showLectureDetailsModal(l['session_id']),
+                                          ),
+                                        );
+                                      },
+                                    ),
                         ],
                       ),
                     ),

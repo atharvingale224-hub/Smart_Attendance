@@ -666,6 +666,160 @@ def export_session_excel(session_id):
         headers={"Content-disposition": f"attachment; filename=attendio_session_{session_id[:8]}.xlsx"}
     )
 
+@app.route('/api/reports/export-master-excel', methods=['GET'])
+def export_master_excel():
+    """Generates and downloads the comprehensive Master Attendance & Defaulter Excel Report (.xlsx)"""
+    class_id = request.args.get('class_id')
+    excel_data = ReportService.export_master_excel(class_id)
+    if not excel_data:
+        return jsonify({'status': 'failed', 'message': 'Class not found or no attendance data.'}), 404
+
+    now_str = get_ist_now().strftime("%Y%m%d_%H%M")
+    filename = f"Attendio_Master_Attendance_BVCOEK_{now_str}.xlsx"
+
+    return Response(
+        excel_data,
+        mimetype="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        headers={"Content-disposition": f"attachment; filename={filename}"}
+    )
+
+@app.route('/api/lectures/history', methods=['GET'])
+def get_lecture_history():
+    """Returns chronological list of all conducted lectures with present/absent summary"""
+    subject_id = request.args.get('subject_id')
+    teacher_id = request.args.get('teacher_id')
+    
+    college = College.query.filter_by(code='BVCOEK').first() or College.query.first()
+    college_id = college.id if college else None
+    ac_class = AcademicClass.query.filter_by(college_id=college_id).first()
+    total_enrolled = StudentProfile.query.filter_by(class_id=ac_class.id).count() if ac_class else 77
+
+    query = LectureSession.query
+    if ac_class:
+        query = query.filter_by(class_id=ac_class.id)
+    if subject_id:
+        query = query.filter_by(subject_id=subject_id)
+    if teacher_id:
+        query = query.filter_by(teacher_id=teacher_id)
+
+    sessions = query.order_by(LectureSession.started_at.desc()).all()
+
+    lectures = []
+    for s in sessions:
+        present_cnt = len(s.attendance_records) if s.attendance_records else 0
+        absent_cnt = max(0, total_enrolled - present_cnt)
+        pct = round((present_cnt / total_enrolled * 100.0), 1) if total_enrolled > 0 else 0.0
+
+        lectures.append({
+            'session_id': s.id,
+            'subject_name': s.subject.name if s.subject else 'Class Lecture',
+            'subject_code': s.subject.code if s.subject else '',
+            'teacher_name': s.teacher.user.full_name if s.teacher and s.teacher.user else 'Faculty',
+            'started_at': s.started_at.isoformat() if s.started_at else None,
+            'started_at_ist': s.started_at.strftime('%Y-%m-%d %I:%M %p') if s.started_at else '',
+            'date': s.started_at.strftime('%Y-%m-%d') if s.started_at else '',
+            'time': s.started_at.strftime('%I:%M %p') if s.started_at else '',
+            'status': s.status,
+            'total_enrolled': total_enrolled,
+            'present_count': present_cnt,
+            'absent_count': absent_cnt,
+            'attendance_percentage': pct,
+            'room': 'LH2'
+        })
+
+    return jsonify({
+        'status': 'success',
+        'total_lectures': len(lectures),
+        'lectures': lectures
+    }), 200
+
+@app.route('/api/lectures/<session_id>/details', methods=['GET'])
+def get_lecture_details(session_id):
+    """Detailed Present vs Absent breakdown for a specific lecture session"""
+    data = ReportService.get_session_attendance(session_id)
+    if not data:
+        return jsonify({'status': 'failed', 'message': 'Lecture session not found.'}), 404
+
+    return jsonify({
+        'status': 'success',
+        'details': data
+    }), 200
+
+@app.route('/api/reports/master-matrix', methods=['GET'])
+def get_master_matrix():
+    """Live attendance matrix of all 77 students and their subject attendance"""
+    college = College.query.filter_by(code='BVCOEK').first() or College.query.first()
+    college_id = college.id if college else None
+    ac_class = AcademicClass.query.filter_by(college_id=college_id).first()
+    if not ac_class:
+        return jsonify({'status': 'failed', 'message': 'Class not found.'}), 404
+
+    subjects = Subject.query.filter_by(department_id=ac_class.department_id, semester=ac_class.semester).all()
+    if not subjects:
+        subjects = Subject.query.filter_by(college_id=college_id).all()
+
+    conducted_sessions = LectureSession.query.filter_by(class_id=ac_class.id).all()
+    total_conducted = len(conducted_sessions)
+
+    subject_sessions = {}
+    for sub in subjects:
+        sub_sess = [s.id for s in conducted_sessions if s.subject_id == sub.id]
+        subject_sessions[sub.id] = sub_sess
+
+    students = StudentProfile.query.filter_by(class_id=ac_class.id).all()
+    def roll_sort_key(st):
+        r = st.roll_no or ""
+        num_part = ''.join(filter(str.isdigit, r))
+        return int(num_part) if num_part else 999
+    students.sort(key=roll_sort_key)
+
+    matrix_rows = []
+    defaulters_count = 0
+
+    for st in students:
+        records = AttendanceRecord.query.filter_by(student_id=st.id).all()
+        att_sess_ids = set(r.session_id for r in records)
+        total_att = len(att_sess_ids)
+        overall_pct = round((total_att / total_conducted * 100.0), 1) if total_conducted > 0 else 0.0
+        is_def = overall_pct < 50.0
+        if is_def:
+            defaulters_count += 1
+
+        sub_map = {}
+        for sub in subjects:
+            s_ids = subject_sessions.get(sub.id, [])
+            cond = len(s_ids)
+            att = len(att_sess_ids.intersection(s_ids))
+            p = round((att / cond * 100.0), 0) if cond > 0 else 0
+            sub_map[sub.code] = {
+                'conducted': cond,
+                'attended': att,
+                'percentage': int(p)
+            }
+
+        matrix_rows.append({
+            'id': st.id,
+            'roll_no': st.roll_no,
+            'prn': st.prn,
+            'full_name': st.user.full_name if st.user else '',
+            'total_attended': total_att,
+            'total_conducted': total_conducted,
+            'percentage': overall_pct,
+            'is_defaulter': is_def,
+            'subjects': sub_map
+        })
+
+    return jsonify({
+        'status': 'success',
+        'class_name': ac_class.name,
+        'division': ac_class.division,
+        'total_students': len(students),
+        'total_conducted_sessions': total_conducted,
+        'defaulters_count': defaulters_count,
+        'subjects': [{'code': s.code, 'name': s.name} for s in subjects],
+        'matrix': matrix_rows
+    }), 200
+
 @app.route('/api/reports/defaulters', methods=['GET'])
 def get_defaulter_report():
     class_id = request.args.get('class_id')
