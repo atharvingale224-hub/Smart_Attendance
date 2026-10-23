@@ -1,8 +1,10 @@
 import 'dart:async';
 import 'dart:convert';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:http/http.dart' as http;
 import 'package:geolocator/geolocator.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 void main() {
   runApp(const TeacherApp());
@@ -17,11 +19,11 @@ class TeacherApp extends StatelessWidget {
       debugShowCheckedModeBanner: false,
       title: 'Attendio - BVCOEK Smart Attendance',
       theme: ThemeData(
-        colorScheme: ColorScheme.fromSeed(seedColor: Colors.indigo),
+        colorScheme: ColorScheme.fromSeed(seedColor: const Color(0xFF1E3A8A)),
         useMaterial3: true,
-        scaffoldBackgroundColor: const Color(0xFFF8FAFC),
+        scaffoldBackgroundColor: const Color(0xFFF1F5F9),
         appBarTheme: const AppBarTheme(
-          backgroundColor: Colors.indigo,
+          backgroundColor: Color(0xFF1E3A8A),
           foregroundColor: Colors.white,
           elevation: 2,
         ),
@@ -83,9 +85,9 @@ final List<Map<String, String>> presetFaculty = [
     'password': 'Teacher@1234',
   },
   {
-    'name': 'Ms. M. P. Kulkarni',
+    'name': 'Mrs. Nayan Patil',
     'subject': 'MDM-03 (Minor 3, CS505)',
-    'email': 'kulkarni@bvcoek.edu.in',
+    'email': 'nayan.patil@bvcoek.edu.in',
     'password': 'Teacher@1234',
   },
   {
@@ -95,6 +97,37 @@ final List<Map<String, String>> presetFaculty = [
     'password': 'Teacher@1234',
   },
 ];
+
+// -------------------------------------------------------------
+// DIRECT DOWNLOAD HELPER (TRIGGER BROWSER DOWNLOAD DIRECTLY)
+// -------------------------------------------------------------
+Future<void> directDownloadUrl(BuildContext context, String url, String title) async {
+  try {
+    final uri = Uri.parse(url);
+    final launched = await launchUrl(uri, mode: LaunchMode.externalApplication);
+    if (!launched) {
+      await launchUrl(uri);
+    }
+    if (context.mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('📥 Downloading $title in browser...'),
+          backgroundColor: Colors.green.shade700,
+          duration: const Duration(seconds: 3),
+        ),
+      );
+    }
+  } catch (e) {
+    if (context.mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Download failed: $e'),
+          backgroundColor: Colors.red,
+        ),
+      );
+    }
+  }
+}
 
 // -------------------------------------------------------------
 // REUSABLE DIALOG HELPERS (EXCEL, TIMETABLE, SERVER, ABOUT)
@@ -123,7 +156,7 @@ void showMasterExcelDialog(BuildContext context) {
           mainAxisSize: MainAxisSize.min,
           children: [
             const Text(
-              'Downloads an official multi-sheet Excel spreadsheet with real-time database calculations:',
+              'Official multi-sheet Excel spreadsheet with real-time calculations:',
               style: TextStyle(fontSize: 13),
             ),
             const SizedBox(height: 12),
@@ -139,18 +172,33 @@ void showMasterExcelDialog(BuildContext context) {
                 children: [
                   Text('📗 Sheet 1: Master Attendance Matrix (Roll 1-77, all subjects)', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12)),
                   SizedBox(height: 4),
-                  Text('🚨 Sheet 2: Defaulters Notice (<50% attendance list)', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12, color: Colors.red)),
+                  Text('🚨 Sheet 2: Defaulters Notice (<50% attendance list for HOD)', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12, color: Colors.red)),
                   SizedBox(height: 4),
-                  Text('📅 Sheet 3: Daily Lecture Logs (Every session, IST time, present/absent counts)', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12)),
+                  Text('📅 Sheet 3: Daily Lecture Logs (Every session, IST time, present/absent)', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12)),
                 ],
               ),
             ),
+            const SizedBox(height: 16),
+            ElevatedButton.icon(
+              style: ElevatedButton.styleFrom(
+                backgroundColor: Colors.green.shade700,
+                foregroundColor: Colors.white,
+                padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 16),
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+              ),
+              onPressed: () {
+                Navigator.of(ctx).pop();
+                directDownloadUrl(context, url, 'Master Attendance Excel');
+              },
+              icon: const Icon(Icons.download_rounded, size: 20),
+              label: const Text('Direct Download Master Excel (.xlsx)', style: TextStyle(fontWeight: FontWeight.bold)),
+            ),
             const SizedBox(height: 12),
-            const Text('Live Cloud Download URL:', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12)),
-            const SizedBox(height: 4),
+            const Text('Download Link:', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 11, color: Colors.grey)),
+            const SizedBox(height: 2),
             SelectableText(
               url,
-              style: const TextStyle(color: Colors.blue, fontSize: 12, fontWeight: FontWeight.bold),
+              style: const TextStyle(color: Colors.blue, fontSize: 11),
             ),
           ],
         ),
@@ -191,8 +239,8 @@ void showTimetableDialog(BuildContext context) {
               day: 'Monday',
               slots: [
                 '11:30 - 12:30 | OOMD (Prof. Upadhye) - LH2',
-                '12:30 - 01:30 | MDM-03 (Ms. Kulkarni) - LH2',
-                '02:15 - 04:15 | MDM-03 Lab (Ms. Kulkarni) - L5',
+                '12:30 - 01:30 | MDM-03 (Mrs. Nayan Patil) - LH2',
+                '02:15 - 04:15 | MDM-03 Lab (Mrs. Nayan Patil) - L5',
               ],
             ),
             _TimetableDayTile(
@@ -202,7 +250,7 @@ void showTimetableDialog(BuildContext context) {
                 '10:15 - 11:15 | OOMD (Prof. Upadhye) - LH3',
                 '11:30 - 12:30 | CA (Dr. Patil) - L4',
                 '12:30 - 01:30 | JP (Ms. Pawar) - L1',
-                '02:15 - 04:15 | MDM-03 (Ms. Kulkarni) - L6',
+                '02:15 - 04:15 | MDM-03 (Mrs. Nayan Patil) - L6',
               ],
             ),
             _TimetableDayTile(
@@ -211,8 +259,8 @@ void showTimetableDialog(BuildContext context) {
                 '09:15 - 10:15 | OE-03 (Ms. Bagban) - LH2',
                 '10:15 - 11:15 | CA (Dr. Patil) - LH2',
                 '11:30 - 12:30 | AI (Mr. Nilje) - LH2',
-                '12:30 - 01:30 | MDM-03 (Ms. Kulkarni) - LH2',
-                '02:15 - 04:15 | MDM-03 (Ms. Kulkarni) - L6',
+                '12:30 - 01:30 | MDM-03 (Mrs. Nayan Patil) - LH2',
+                '02:15 - 04:15 | MDM-03 (Mrs. Nayan Patil) - L6',
               ],
             ),
             _TimetableDayTile(
@@ -220,7 +268,7 @@ void showTimetableDialog(BuildContext context) {
               slots: [
                 '09:15 - 11:15 | OOMD (Prof. Upadhye) - L5',
                 '11:30 - 01:30 | JP (Ms. Pawar) - L8',
-                '02:15 - 04:15 | MDM-03 (Ms. Kulkarni) - L6',
+                '02:15 - 04:15 | MDM-03 (Mrs. Nayan Patil) - L6',
               ],
             ),
             _TimetableDayTile(
@@ -229,7 +277,7 @@ void showTimetableDialog(BuildContext context) {
                 '09:15 - 10:15 | OE-03 (Ms. Bagban) - LH2',
                 '10:15 - 11:15 | CA (Dr. Patil) - LH2',
                 '11:30 - 12:30 | AI (Mr. Nilje) - LH2',
-                '12:30 - 01:30 | MDM-03 (Ms. Kulkarni) - LH2',
+                '12:30 - 01:30 | MDM-03 (Mrs. Nayan Patil) - LH2',
                 '02:15 - 04:15 | OOMD (Prof. Upadhye) - L5',
               ],
             ),
@@ -349,9 +397,9 @@ void showAboutAttendioDialog(BuildContext context) {
           Text("Department of Computer Science & Engineering (T.Y. CSE)", style: TextStyle(fontSize: 12, color: Colors.grey)),
           SizedBox(height: 12),
           Text(
-            "An enterprise smart attendance system engineered with 3-tier role architecture:\n\n"
+            "Enterprise smart attendance system:\n\n"
             "• 🏫 College Admin: Manage faculty, subjects, & master sheets\n"
-            "• 🎓 Class Teacher: 50% Defaulter tagging, student breakdown & 6-month lecture logs\n"
+            "• 🎓 Class Teacher: 50% Defaulters, 77 students & 6-month lecture logs\n"
             "• 👨‍🏫 Subject Faculty: 50m phone GPS geofence & 80s rotating QR code\n"
             "• 📊 Automated 3-Sheet Master Excel Export",
             style: TextStyle(fontSize: 12),
@@ -381,13 +429,13 @@ class AttendioDrawer extends StatelessWidget {
     return Drawer(
       child: Column(
         children: [
-          // Realistic University Drawer Header
+          // University Drawer Header
           Container(
             width: double.infinity,
             padding: const EdgeInsets.only(top: 50, bottom: 20, left: 20, right: 20),
             decoration: const BoxDecoration(
               gradient: LinearGradient(
-                colors: [Colors.indigo, Color(0xFF1E1B4B)],
+                colors: [Color(0xFF1E3A8A), Color(0xFF0F172A)],
                 begin: Alignment.topLeft,
                 end: Alignment.bottomRight,
               ),
@@ -461,11 +509,10 @@ class AttendioDrawer extends StatelessWidget {
                   child: Text('ROLE PORTALS', style: TextStyle(color: Colors.grey, fontSize: 11, fontWeight: FontWeight.bold, letterSpacing: 1)),
                 ),
 
-                // 1. Admin Console
                 ListTile(
                   leading: const Icon(Icons.admin_panel_settings_rounded, color: Colors.purple),
                   title: const Text('Admin Console', style: TextStyle(fontWeight: FontWeight.w600, fontSize: 14)),
-                  subtitle: const Text('Add teachers, subjects & system matrix', style: TextStyle(fontSize: 11)),
+                  subtitle: const Text('Add teachers, subjects & master sheet', style: TextStyle(fontSize: 11)),
                   selected: activeScreen == 'admin',
                   selectedTileColor: Colors.purple.shade50,
                   onTap: () {
@@ -478,11 +525,10 @@ class AttendioDrawer extends StatelessWidget {
                   },
                 ),
 
-                // 2. Class Teacher Portal
                 ListTile(
                   leading: const Icon(Icons.school_rounded, color: Colors.amber),
                   title: const Text('Class Teacher Portal', style: TextStyle(fontWeight: FontWeight.w600, fontSize: 14)),
-                  subtitle: const Text('Defaulters (<50%), 77 students & lecture logs', style: TextStyle(fontSize: 11)),
+                  subtitle: const Text('Live lectures, 50% defaulters & all 77 students', style: TextStyle(fontSize: 11)),
                   selected: activeScreen == 'class_teacher',
                   selectedTileColor: Colors.amber.shade50,
                   onTap: () {
@@ -495,7 +541,6 @@ class AttendioDrawer extends StatelessWidget {
                   },
                 ),
 
-                // 3. Subject Faculty Console
                 ListTile(
                   leading: const Icon(Icons.qr_code_scanner_rounded, color: Colors.indigo),
                   title: const Text('Subject Teacher Console', style: TextStyle(fontWeight: FontWeight.w600, fontSize: 14)),
@@ -515,16 +560,16 @@ class AttendioDrawer extends StatelessWidget {
                 const Divider(),
                 const Padding(
                   padding: EdgeInsets.symmetric(horizontal: 16, vertical: 6),
-                  child: Text('QUICK TOOLS & DATA', style: TextStyle(color: Colors.grey, fontSize: 11, fontWeight: FontWeight.bold, letterSpacing: 1)),
+                  child: Text('DIRECT ACTIONS & EXCEL', style: TextStyle(color: Colors.grey, fontSize: 11, fontWeight: FontWeight.bold, letterSpacing: 1)),
                 ),
 
                 ListTile(
                   leading: const Icon(Icons.file_download_outlined, color: Colors.green),
-                  title: const Text('Download Master Excel (.xlsx)', style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600)),
-                  subtitle: const Text('All 3 sheets: Matrix, Defaulters & Daily Log', style: TextStyle(fontSize: 11)),
+                  title: const Text('Direct Download Master Excel (.xlsx)', style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: Colors.green)),
+                  subtitle: const Text('1-Tap Download: Matrix, Defaulters & Daily Log', style: TextStyle(fontSize: 11)),
                   onTap: () {
                     Navigator.of(context).pop();
-                    showMasterExcelDialog(context);
+                    directDownloadUrl(context, '${AppConfig.baseUrl}/api/reports/export-master-excel', 'Master Excel');
                   },
                 ),
 
@@ -541,7 +586,6 @@ class AttendioDrawer extends StatelessWidget {
                 ListTile(
                   leading: const Icon(Icons.dns_rounded, color: Colors.blue),
                   title: const Text('Server Diagnostics', style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600)),
-                  subtitle: const Text('Render cloud backend & GPS specs', style: TextStyle(fontSize: 11)),
                   onTap: () {
                     Navigator.of(context).pop();
                     showServerStatusDialog(context);
@@ -593,7 +637,7 @@ class AttendioPopupMenu extends StatelessWidget {
       tooltip: 'Options & Tools',
       onSelected: (val) {
         if (val == 'excel') {
-          showMasterExcelDialog(context);
+          directDownloadUrl(context, '${AppConfig.baseUrl}/api/reports/export-master-excel', 'Master Excel');
         } else if (val == 'timetable') {
           showTimetableDialog(context);
         } else if (val == 'server') {
@@ -615,7 +659,7 @@ class AttendioPopupMenu extends StatelessWidget {
             children: [
               Icon(Icons.file_download_outlined, color: Colors.green, size: 20),
               SizedBox(width: 10),
-              Text('Download Master Excel'),
+              Text('Direct Download Master Excel', style: TextStyle(fontWeight: FontWeight.bold, color: Colors.green)),
             ],
           ),
         ),
@@ -734,7 +778,6 @@ class _AuthGateState extends State<AuthGate> {
         AppConfig.currentUser = data['user'];
 
         if (mounted) {
-          // Route according to chosen role
           if (_selectedRole == AppRole.admin || AppConfig.isAdmin()) {
             Navigator.of(context).pushReplacement(
               MaterialPageRoute(builder: (_) => const AdminDashboardScreen()),
@@ -820,7 +863,7 @@ class _AuthGateState extends State<AuthGate> {
           child: ConstrainedBox(
             constraints: const BoxConstraints(maxWidth: 480),
             child: Card(
-              elevation: 5,
+              elevation: 4,
               shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(22)),
               child: Padding(
                 padding: const EdgeInsets.symmetric(horizontal: 24.0, vertical: 28.0),
@@ -828,7 +871,6 @@ class _AuthGateState extends State<AuthGate> {
                   mainAxisSize: MainAxisSize.min,
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
-                    // College Branding Header
                     Center(
                       child: Container(
                         padding: const EdgeInsets.all(12),
@@ -836,14 +878,14 @@ class _AuthGateState extends State<AuthGate> {
                           color: Colors.indigo.shade50,
                           shape: BoxShape.circle,
                         ),
-                        child: const Icon(Icons.school_rounded, size: 48, color: Colors.indigo),
+                        child: const Icon(Icons.school_rounded, size: 48, color: Color(0xFF1E3A8A)),
                       ),
                     ),
                     const SizedBox(height: 10),
                     const Text(
                       'Attendio',
                       textAlign: TextAlign.center,
-                      style: TextStyle(fontSize: 26, fontWeight: FontWeight.bold, color: Colors.indigo),
+                      style: TextStyle(fontSize: 26, fontWeight: FontWeight.bold, color: Color(0xFF1E3A8A)),
                     ),
                     const Text(
                       "Bharati Vidyapeeth's College of Engg., Kolhapur\nT.Y. Computer Science & Engineering",
@@ -852,9 +894,6 @@ class _AuthGateState extends State<AuthGate> {
                     ),
                     const SizedBox(height: 22),
 
-                    // ---------------------------------------------------------
-                    // 3 EXPLICIT ROLE SELECTOR TABS (ADMIN / CLASS TEACHER / TEACHER)
-                    // ---------------------------------------------------------
                     const Text(
                       'Select Your Portal Role:',
                       style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: Colors.black87),
@@ -862,7 +901,6 @@ class _AuthGateState extends State<AuthGate> {
                     const SizedBox(height: 10),
                     Row(
                       children: [
-                        // Option 1: Admin
                         Expanded(
                           child: _RoleTabButton(
                             title: 'Admin',
@@ -873,7 +911,6 @@ class _AuthGateState extends State<AuthGate> {
                           ),
                         ),
                         const SizedBox(width: 8),
-                        // Option 2: Class Teacher
                         Expanded(
                           child: _RoleTabButton(
                             title: 'Class Teacher',
@@ -884,13 +921,12 @@ class _AuthGateState extends State<AuthGate> {
                           ),
                         ),
                         const SizedBox(width: 8),
-                        // Option 3: Teacher
                         Expanded(
                           child: _RoleTabButton(
                             title: 'Teacher',
                             icon: Icons.person_rounded,
                             isSelected: _selectedRole == AppRole.teacher,
-                            activeColor: Colors.indigo,
+                            activeColor: const Color(0xFF1E3A8A),
                             onTap: () => _onRoleChanged(AppRole.teacher),
                           ),
                         ),
@@ -898,11 +934,9 @@ class _AuthGateState extends State<AuthGate> {
                     ),
                     const SizedBox(height: 16),
 
-                    // Role Details & Responsibilities Card
                     _buildRoleBanner(),
                     const SizedBox(height: 16),
 
-                    // If Teacher Role: Quick Faculty Dropdown
                     if (_selectedRole == AppRole.teacher) ...[
                       Container(
                         padding: const EdgeInsets.all(12),
@@ -916,7 +950,7 @@ class _AuthGateState extends State<AuthGate> {
                           children: [
                             const Text(
                               '👨‍🏫 Quick Select Subject Faculty:',
-                              style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Colors.indigo),
+                              style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Color(0xFF1E3A8A)),
                             ),
                             const SizedBox(height: 8),
                             DropdownButtonFormField<String>(
@@ -1002,12 +1036,11 @@ class _AuthGateState extends State<AuthGate> {
                     ),
                     const SizedBox(height: 20),
 
-                    // Login Button customized per role
                     ElevatedButton(
                       style: ElevatedButton.styleFrom(
                         backgroundColor: _selectedRole == AppRole.admin
                             ? Colors.purple
-                            : (_selectedRole == AppRole.classTeacher ? Colors.amber.shade800 : Colors.indigo),
+                            : (_selectedRole == AppRole.classTeacher ? Colors.amber.shade800 : const Color(0xFF1E3A8A)),
                         foregroundColor: Colors.white,
                         padding: const EdgeInsets.symmetric(vertical: 14),
                         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
@@ -1037,7 +1070,6 @@ class _AuthGateState extends State<AuthGate> {
                     ),
                     const SizedBox(height: 10),
 
-                    // Direct Demo Preview Button
                     TextButton.icon(
                       onPressed: _bypassToSelectedRole,
                       icon: const Icon(Icons.bolt_rounded, size: 18),
@@ -1077,9 +1109,9 @@ class _AuthGateState extends State<AuthGate> {
             ),
             SizedBox(height: 6),
             Text(
-              '• Add new faculty members & assign subjects\n'
-              '• Add new subjects & course curriculum\n'
-              '• View master matrix & export monthly Excel (.xlsx)\n'
+              '• Add faculty members (including Mrs. Nayan Patil & team)\n'
+              '• Add new course subjects & semesters\n'
+              '• Direct download master Excel (.xlsx) file\n'
               '• Manage college 50m phone geofence boundary',
               style: TextStyle(fontSize: 11, height: 1.4, color: Colors.black87),
             ),
@@ -1106,10 +1138,10 @@ class _AuthGateState extends State<AuthGate> {
             ),
             SizedBox(height: 6),
             Text(
-              '• Automated Defaulters list (<50% attendance)\n'
-              '• Complete roster of all 77 students (PRN 2024071601 - 2024071677)\n'
-              '• Historical lecture logs with present/absent student breakdown\n'
-              '• Start OOMD lecture according to timetable',
+              '• Direct view of every lecture: Present (Green) & Absent (Red) count\n'
+              '• Inspect who is present & who is absent with 1-tap\n'
+              '• 50% Defaulters list & all 77 students (Roll 1 to 77)\n'
+              '• Direct download lecture & master Excel sheets',
               style: TextStyle(fontSize: 11, height: 1.4, color: Colors.black87),
             ),
           ],
@@ -1128,17 +1160,17 @@ class _AuthGateState extends State<AuthGate> {
           children: [
             Row(
               children: [
-                Icon(Icons.co_present_rounded, color: Colors.indigo, size: 18),
+                Icon(Icons.co_present_rounded, color: Color(0xFF1E3A8A), size: 18),
                 SizedBox(width: 8),
-                Text('Subject Teacher Console', style: TextStyle(fontWeight: FontWeight.bold, color: Colors.indigo, fontSize: 13)),
+                Text('Subject Teacher Console', style: TextStyle(fontWeight: FontWeight.bold, color: Color(0xFF1E3A8A), fontSize: 13)),
               ],
             ),
             SizedBox(height: 6),
             Text(
-              '• Mark attendance for your assigned timetable subject only\n'
-              '• Strict 50-meter radius geofence tied to teacher phone GPS\n'
+              '• Mark attendance according to scheduled timetable slot\n'
+              '• Strict 50-meter GPS proximity tied to phone sensor\n'
               '• Dynamic rotating QR code refreshing every 80 seconds\n'
-              '• Real-time student check-in list with exact distance',
+              '• Copy Link button beside attendance URL for easy sharing',
               style: TextStyle(fontSize: 11, height: 1.4, color: Colors.black87),
             ),
           ],
@@ -1248,17 +1280,14 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> with Single
     });
 
     try {
-      // 1. Fetch dashboard stats
       final statsRes = await http.get(
         Uri.parse('${AppConfig.baseUrl}/api/admin/dashboard-stats'),
       ).timeout(const Duration(seconds: 40));
 
-      // 2. Fetch subjects
       final subjRes = await http.get(
         Uri.parse('${AppConfig.baseUrl}/api/admin/subjects'),
       ).timeout(const Duration(seconds: 40));
 
-      // 3. Fetch defaulters count
       final defRes = await http.get(
         Uri.parse('${AppConfig.baseUrl}/api/class-teacher/dashboard-data'),
       ).timeout(const Duration(seconds: 40));
@@ -1290,7 +1319,6 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> with Single
     }
   }
 
-  // Admin Add Faculty Dialog
   void _showAddTeacherDialog() {
     final nameCtrl = TextEditingController();
     final emailCtrl = TextEditingController();
@@ -1316,12 +1344,12 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> with Single
               children: [
                 TextField(
                   controller: nameCtrl,
-                  decoration: const InputDecoration(labelText: 'Full Name (e.g. Dr. A. K. Sharma)', border: OutlineInputBorder()),
+                  decoration: const InputDecoration(labelText: 'Full Name (e.g. Mrs. Nayan Patil)', border: OutlineInputBorder()),
                 ),
                 const SizedBox(height: 10),
                 TextField(
                   controller: emailCtrl,
-                  decoration: const InputDecoration(labelText: 'College Email (e.g. sharma@bvcoek.edu.in)', border: OutlineInputBorder()),
+                  decoration: const InputDecoration(labelText: 'College Email (e.g. nayan.patil@bvcoek.edu.in)', border: OutlineInputBorder()),
                 ),
                 const SizedBox(height: 10),
                 TextField(
@@ -1403,7 +1431,6 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> with Single
     );
   }
 
-  // Admin Add Subject Dialog
   void _showAddSubjectDialog() {
     final nameCtrl = TextEditingController();
     final codeCtrl = TextEditingController();
@@ -1426,7 +1453,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> with Single
             children: [
               TextField(
                 controller: nameCtrl,
-                decoration: const InputDecoration(labelText: 'Subject Name (e.g. Cloud Computing)', border: OutlineInputBorder()),
+                decoration: const InputDecoration(labelText: 'Subject Name (e.g. Distributed Systems)', border: OutlineInputBorder()),
               ),
               const SizedBox(height: 10),
               TextField(
@@ -1502,8 +1529,8 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> with Single
         actions: [
           IconButton(
             icon: const Icon(Icons.file_download_outlined),
-            tooltip: 'Download Master Excel',
-            onPressed: () => showMasterExcelDialog(context),
+            tooltip: 'Direct Download Master Excel',
+            onPressed: () => directDownloadUrl(context, '${AppConfig.baseUrl}/api/reports/export-master-excel', 'Master Excel'),
           ),
           const AttendioPopupMenu(),
         ],
@@ -1536,7 +1563,6 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> with Single
                 )
               : Column(
                   children: [
-                    // Top Overview Metrics
                     Container(
                       padding: const EdgeInsets.all(12),
                       color: Colors.purple.shade50,
@@ -1551,7 +1577,6 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> with Single
                             ],
                           ),
                           const SizedBox(height: 8),
-                          // Action Shortcut Row
                           Row(
                             children: [
                               Expanded(
@@ -1587,9 +1612,9 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> with Single
                                     foregroundColor: Colors.white,
                                     padding: const EdgeInsets.symmetric(vertical: 8),
                                   ),
-                                  onPressed: () => showMasterExcelDialog(context),
-                                  icon: const Icon(Icons.table_chart, size: 16),
-                                  label: const Text('Master Excel', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold)),
+                                  onPressed: () => directDownloadUrl(context, '${AppConfig.baseUrl}/api/reports/export-master-excel', 'Master Excel'),
+                                  icon: const Icon(Icons.download, size: 16),
+                                  label: const Text('Direct Excel', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold)),
                                 ),
                               ),
                             ],
@@ -1598,12 +1623,10 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> with Single
                       ),
                     ),
 
-                    // Tab View Contents
                     Expanded(
                       child: TabBarView(
                         controller: _tabController,
                         children: [
-                          // Tab 1: Faculty List
                           ListView.builder(
                             padding: const EdgeInsets.all(12),
                             itemCount: _teachers.length,
@@ -1646,7 +1669,6 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> with Single
                             },
                           ),
 
-                          // Tab 2: Course Subjects
                           ListView.builder(
                             padding: const EdgeInsets.all(12),
                             itemCount: _subjects.length,
@@ -1671,7 +1693,6 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> with Single
                             },
                           ),
 
-                          // Tab 3: Recent Conducted Sessions
                           _recentSessions.isEmpty
                               ? const Center(child: Text('No conducted lecture sessions yet.'))
                               : ListView.builder(
@@ -1684,7 +1705,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> with Single
                                       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
                                       child: ListTile(
                                         leading: const CircleAvatar(
-                                          backgroundColor: Colors.indigo,
+                                          backgroundColor: Color(0xFF1E3A8A),
                                           child: Icon(Icons.class_rounded, color: Colors.white, size: 18),
                                         ),
                                         title: Text(
@@ -1810,7 +1831,7 @@ class _TeacherDashboardScreenState extends State<TeacherDashboardScreen> {
       if (permission == LocationPermission.deniedForever) {
         setState(() {
           _isLocating = false;
-          _locationStatus = "GPS permission permanently denied.";
+          _locationStatus = "GPS permanently denied.";
         });
         return null;
       }
@@ -1891,15 +1912,29 @@ class _TeacherDashboardScreenState extends State<TeacherDashboardScreen> {
   Future<void> rotateToken() async {
     if (activeSessionId.isEmpty) return;
     try {
-      final response = await http.post(
-        Uri.parse('${AppConfig.baseUrl}/api/session/$activeSessionId/rotate-token'),
-      ).timeout(const Duration(seconds: 30));
+      http.Response response;
+      try {
+        response = await http.post(
+          Uri.parse('${AppConfig.baseUrl}/api/session/$activeSessionId/rotate-token'),
+        ).timeout(const Duration(seconds: 25));
+        if (response.statusCode == 404) {
+          response = await http.get(
+            Uri.parse('${AppConfig.baseUrl}/api/teacher/session/$activeSessionId/live-qr'),
+          ).timeout(const Duration(seconds: 25));
+        }
+      } catch (_) {
+        response = await http.get(
+          Uri.parse('${AppConfig.baseUrl}/api/teacher/session/$activeSessionId/live-qr'),
+        ).timeout(const Duration(seconds: 25));
+      }
 
       if (response.statusCode == 200) {
         final data = jsonDecode(response.body);
+        final token = data['token'] ?? data['current_token'] ?? data['active_token'] ?? '';
+        final sUrl = data['student_url'] ?? data['url'] ?? '${AppConfig.baseUrl}/attend?session=$activeSessionId&token=$token';
         setState(() {
-          currentToken = data['token'];
-          generatedUrl = '${AppConfig.baseUrl}/mark-attendance?session_id=$activeSessionId&token=$currentToken';
+          currentToken = token;
+          generatedUrl = sUrl;
         });
         fetchAttendanceReport();
       }
@@ -1918,11 +1953,13 @@ class _TeacherDashboardScreenState extends State<TeacherDashboardScreen> {
     try {
       final payload = <String, dynamic>{
         'proximity_radius_meters': 50.0,
+        'proximity_radius': 50.0,
         'teacher_lat': teacherLat,
         'teacher_lng': teacherLng,
       };
 
       if (selectedSlot != null) {
+        payload['slot_id'] = selectedSlot!['id'];
         payload['timetable_slot_id'] = selectedSlot!['id'];
         payload['subject_id'] = selectedSlot!['subject_id'];
         payload['class_id'] = selectedSlot!['class_id'];
@@ -1933,34 +1970,55 @@ class _TeacherDashboardScreenState extends State<TeacherDashboardScreen> {
         headers['Authorization'] = 'Bearer ${AppConfig.authToken}';
       }
 
-      final response = await http.post(
-        Uri.parse('${AppConfig.baseUrl}/api/session/create'),
-        headers: headers,
-        body: jsonEncode(payload),
-      ).timeout(const Duration(seconds: 50));
+      http.Response response;
+      try {
+        response = await http.post(
+          Uri.parse('${AppConfig.baseUrl}/api/session/create'),
+          headers: headers,
+          body: jsonEncode(payload),
+        ).timeout(const Duration(seconds: 40));
+
+        if (response.statusCode == 404) {
+          response = await http.post(
+            Uri.parse('${AppConfig.baseUrl}/api/create-session'),
+            headers: headers,
+            body: jsonEncode(payload),
+          ).timeout(const Duration(seconds: 40));
+        }
+      } catch (e) {
+        response = await http.post(
+          Uri.parse('${AppConfig.baseUrl}/api/create-session'),
+          headers: headers,
+          body: jsonEncode(payload),
+        ).timeout(const Duration(seconds: 40));
+      }
 
       final data = jsonDecode(response.body);
 
-      if (response.statusCode == 201 && data['status'] == 'success') {
+      if ((response.statusCode == 200 || response.statusCode == 201) && data['status'] == 'success') {
+        final token = data['active_token'] ?? data['token'] ?? data['current_token'] ?? '';
+        final sId = data['session_id'] ?? '';
+        final sUrl = data['url'] ?? data['student_url'] ?? '${AppConfig.baseUrl}/attend?session=$sId&token=$token';
+
         setState(() {
-          activeSessionId = data['session_id'];
-          currentToken = data['active_token'];
-          generatedUrl = '${AppConfig.baseUrl}/mark-attendance?session_id=$activeSessionId&token=$currentToken';
+          activeSessionId = sId;
+          currentToken = token;
+          generatedUrl = sUrl;
           isSessionActive = true;
           secondsRemaining = 80;
           _activeSessionTeacherLat = teacherLat;
           _activeSessionTeacherLng = teacherLng;
-          currentSubjectName = selectedSlot?['subject_name'] ?? 'Classroom Lecture';
-          currentRoom = selectedSlot?['room'] ?? 'LH2';
+          currentSubjectName = selectedSlot?['subject_name'] ?? data['subject_name'] ?? 'Classroom Lecture';
+          currentRoom = selectedSlot?['room'] ?? data['room'] ?? 'LH2';
           attendanceList = [];
         });
         startTokenRotation();
-        _showSnackBar("Attendance Session Active! 50m phone radius locked.");
+        _showSnackBar("✅ Attendance Session Active! 50m phone radius locked.");
       } else {
         _showSnackBar("Failed: ${data['message'] ?? 'Could not start session'}");
       }
     } catch (e) {
-      _showSnackBar("Network Error: Could not reach backend server.");
+      _showSnackBar("Error connecting: $e. Tap to retry!");
     } finally {
       if (mounted) setState(() => isLoading = false);
     }
@@ -1971,9 +2029,21 @@ class _TeacherDashboardScreenState extends State<TeacherDashboardScreen> {
     setState(() => isLoading = true);
 
     try {
-      final response = await http.post(
-        Uri.parse('${AppConfig.baseUrl}/api/session/$activeSessionId/end'),
-      ).timeout(const Duration(seconds: 30));
+      http.Response response;
+      try {
+        response = await http.post(
+          Uri.parse('${AppConfig.baseUrl}/api/session/$activeSessionId/end'),
+        ).timeout(const Duration(seconds: 25));
+        if (response.statusCode == 404) {
+          response = await http.post(
+            Uri.parse('${AppConfig.baseUrl}/api/teacher/session/$activeSessionId/end'),
+          ).timeout(const Duration(seconds: 25));
+        }
+      } catch (_) {
+        response = await http.post(
+          Uri.parse('${AppConfig.baseUrl}/api/teacher/session/$activeSessionId/end'),
+        ).timeout(const Duration(seconds: 25));
+      }
 
       if (response.statusCode == 200) {
         _rotationTimer?.cancel();
@@ -1984,10 +2054,10 @@ class _TeacherDashboardScreenState extends State<TeacherDashboardScreen> {
           generatedUrl = "";
           secondsRemaining = 80;
         });
-        _showSnackBar("Session ended. All attendance records saved to permanent database.");
+        _showSnackBar("✅ Session ended. Attendance records permanently saved to database.");
       }
     } catch (e) {
-      _showSnackBar("Error ending session.");
+      _showSnackBar("Error ending session: $e");
     } finally {
       if (mounted) setState(() => isLoading = false);
     }
@@ -2063,9 +2133,8 @@ class _TeacherDashboardScreenState extends State<TeacherDashboardScreen> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              // Logged-in Faculty Header Card
               Card(
-                color: Colors.indigo.shade900,
+                color: const Color(0xFF1E3A8A),
                 elevation: 3,
                 shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
                 child: Padding(
@@ -2078,7 +2147,7 @@ class _TeacherDashboardScreenState extends State<TeacherDashboardScreen> {
                         child: Icon(
                           isCT ? Icons.stars_rounded : Icons.person_rounded,
                           size: 32,
-                          color: isCT ? Colors.indigo.shade900 : Colors.white,
+                          color: isCT ? const Color(0xFF1E3A8A) : Colors.white,
                         ),
                       ),
                       const SizedBox(width: 14),
@@ -2117,7 +2186,6 @@ class _TeacherDashboardScreenState extends State<TeacherDashboardScreen> {
               ),
               const SizedBox(height: 16),
 
-              // Proximity GPS Sensor Status Card
               Card(
                 elevation: 2,
                 shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
@@ -2162,7 +2230,6 @@ class _TeacherDashboardScreenState extends State<TeacherDashboardScreen> {
               ),
               const SizedBox(height: 16),
 
-              // Class Teacher Portal Shortcut Banner
               if (isCT)
                 Card(
                   color: Colors.amber.shade50,
@@ -2176,14 +2243,13 @@ class _TeacherDashboardScreenState extends State<TeacherDashboardScreen> {
                       child: Icon(Icons.analytics_rounded, color: Colors.black87),
                     ),
                     title: const Text('Class Teacher Defaulter Portal (< 50%)', style: TextStyle(fontWeight: FontWeight.bold)),
-                    subtitle: const Text('View all 77 students, subject breakdowns & defaulters list.'),
+                    subtitle: const Text('Live lectures, 50% defaulters list & all 77 students.'),
                     trailing: const Icon(Icons.arrow_forward_ios_rounded, size: 16, color: Colors.black54),
                     onTap: _openClassTeacherPortal,
                   ),
                 ),
               if (isCT) const SizedBox(height: 16),
 
-              // Session Control & Rotating Dynamic QR Card
               Card(
                 elevation: 4,
                 shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
@@ -2236,7 +2302,7 @@ class _TeacherDashboardScreenState extends State<TeacherDashboardScreen> {
                         const SizedBox(height: 20),
                         ElevatedButton.icon(
                           style: ElevatedButton.styleFrom(
-                            backgroundColor: Colors.indigo,
+                            backgroundColor: const Color(0xFF1E3A8A),
                             padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 14),
                             shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
                           ),
@@ -2258,7 +2324,7 @@ class _TeacherDashboardScreenState extends State<TeacherDashboardScreen> {
                           ),
                           child: Text(
                             "Active Lecture: $currentSubjectName (Room: $currentRoom)",
-                            style: const TextStyle(fontWeight: FontWeight.bold, color: Colors.indigo),
+                            style: const TextStyle(fontWeight: FontWeight.bold, color: Color(0xFF1E3A8A)),
                           ),
                         ),
                         Container(
@@ -2276,7 +2342,7 @@ class _TeacherDashboardScreenState extends State<TeacherDashboardScreen> {
                               const SizedBox(width: 6),
                               Flexible(
                                 child: Text(
-                                  "50m Boundary Locked to this Phone (${_activeSessionTeacherLat.toStringAsFixed(4)}, ${_activeSessionTeacherLng.toStringAsFixed(4)})",
+                                  "50m Boundary Locked to Phone (${_activeSessionTeacherLat.toStringAsFixed(4)}, ${_activeSessionTeacherLng.toStringAsFixed(4)})",
                                   style: const TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: Colors.green),
                                 ),
                               ),
@@ -2297,7 +2363,6 @@ class _TeacherDashboardScreenState extends State<TeacherDashboardScreen> {
                           ),
                         ),
                         const SizedBox(height: 20),
-                        // 80s Dynamic rotating countdown timer
                         Container(
                           padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
                           decoration: BoxDecoration(
@@ -2313,14 +2378,14 @@ class _TeacherDashboardScreenState extends State<TeacherDashboardScreen> {
                               Icon(
                                 Icons.timer_outlined,
                                 size: 18,
-                                color: secondsRemaining <= 10 ? Colors.red : Colors.indigo,
+                                color: secondsRemaining <= 10 ? Colors.red : const Color(0xFF1E3A8A),
                               ),
                               const SizedBox(width: 6),
                               Text(
                                 'Token Refresh in: $secondsRemaining seconds',
                                 style: TextStyle(
                                   fontWeight: FontWeight.bold,
-                                  color: secondsRemaining <= 10 ? Colors.red : Colors.indigo,
+                                  color: secondsRemaining <= 10 ? Colors.red : const Color(0xFF1E3A8A),
                                   fontSize: 14,
                                 ),
                               ),
@@ -2328,13 +2393,49 @@ class _TeacherDashboardScreenState extends State<TeacherDashboardScreen> {
                           ),
                         ),
                         const SizedBox(height: 15),
-                        SelectableText(
-                          generatedUrl,
-                          style: const TextStyle(color: Colors.blue, fontWeight: FontWeight.bold, fontSize: 13),
-                          textAlign: TextAlign.center,
+
+                        // ATTENDANCE URL WITH DIRECT COPY BUTTON BESIDE IT
+                        Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                          decoration: BoxDecoration(
+                            color: Colors.blue.shade50,
+                            borderRadius: BorderRadius.circular(12),
+                            border: Border.all(color: Colors.blue.shade200),
+                          ),
+                          child: Row(
+                            children: [
+                              Expanded(
+                                child: SelectableText(
+                                  generatedUrl,
+                                  style: const TextStyle(color: Colors.blue, fontWeight: FontWeight.bold, fontSize: 12),
+                                ),
+                              ),
+                              const SizedBox(width: 8),
+                              ElevatedButton.icon(
+                                style: ElevatedButton.styleFrom(
+                                  backgroundColor: const Color(0xFF1E3A8A),
+                                  foregroundColor: Colors.white,
+                                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+                                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                                ),
+                                onPressed: () {
+                                  Clipboard.setData(ClipboardData(text: generatedUrl));
+                                  ScaffoldMessenger.of(context).showSnackBar(
+                                    const SnackBar(
+                                      content: Text('✅ Attendance Link Copied to Clipboard!'),
+                                      backgroundColor: Colors.green,
+                                      duration: Duration(seconds: 2),
+                                    ),
+                                  );
+                                },
+                                icon: const Icon(Icons.copy_rounded, size: 15),
+                                label: const Text('Copy Link', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 11)),
+                              ),
+                            ],
+                          ),
                         ),
                         const SizedBox(height: 15),
-                        // Classroom Projector QR Display
+
                         Container(
                           padding: const EdgeInsets.all(12),
                           decoration: BoxDecoration(
@@ -2364,7 +2465,6 @@ class _TeacherDashboardScreenState extends State<TeacherDashboardScreen> {
               ),
               const SizedBox(height: 24),
 
-              // Live Attendance Roster with Real-Time Present & Absent Counters
               Card(
                 color: Colors.white,
                 elevation: 2,
@@ -2399,7 +2499,7 @@ class _TeacherDashboardScreenState extends State<TeacherDashboardScreen> {
                       ),
                       IconButton(
                         onPressed: fetchAttendanceReport,
-                        icon: const Icon(Icons.sync, color: Colors.indigo),
+                        icon: const Icon(Icons.sync, color: Color(0xFF1E3A8A)),
                         tooltip: 'Refresh Roster',
                       )
                     ],
@@ -2454,7 +2554,7 @@ class _TeacherDashboardScreenState extends State<TeacherDashboardScreen> {
                               ),
                               child: Text(
                                 '${record['distance']} m',
-                                style: const TextStyle(color: Colors.indigo, fontWeight: FontWeight.bold, fontSize: 13),
+                                style: const TextStyle(color: Color(0xFF1E3A8A), fontWeight: FontWeight.bold, fontSize: 13),
                               ),
                             ),
                           ),
@@ -2470,7 +2570,7 @@ class _TeacherDashboardScreenState extends State<TeacherDashboardScreen> {
 }
 
 // -------------------------------------------------------------
-// CLASS TEACHER PORTAL, DEFAULTER & HISTORICAL LECTURES SCREEN
+// CLASS TEACHER PORTAL SCREEN (LIVE LECTURES, ABSENTEES, DEFAULTERS)
 // -------------------------------------------------------------
 class ClassTeacherPortalScreen extends StatefulWidget {
   const ClassTeacherPortalScreen({super.key});
@@ -2497,6 +2597,7 @@ class _ClassTeacherPortalScreenState extends State<ClassTeacherPortalScreen> wit
   @override
   void initState() {
     super.initState();
+    // 3 Tabs: 1: Lectures & Absentees (Front & Center!), 2: Defaulters (<50%), 3: All 77 Students
     _tabController = TabController(length: 3, vsync: this);
     _fetchClassTeacherData();
     _fetchLectureHistory();
@@ -2522,10 +2623,37 @@ class _ClassTeacherPortalScreenState extends State<ClassTeacherPortalScreen> wit
 
       if (response.statusCode == 200) {
         final data = jsonDecode(response.body);
+        final rawStudents = (data['students'] as List?) ?? [];
+        final rawDefaulters = (data['defaulters'] as List?) ?? [];
+
+        // STRICTLY KEEP ONLY THE 77 REAL STUDENTS (Roll 1 to 77, PRN 2024071601 to 2024071677)
+        // Filter out any legacy dummy test students (PRN2024001 - PRN2024005)
+        final realStudents = rawStudents.where((s) {
+          final prn = (s['prn'] ?? '').toString();
+          return prn.startsWith('20240716') || (int.tryParse(s['roll_no']?.toString() ?? '') != null && int.parse(s['roll_no'].toString()) <= 77 && !prn.startsWith('PRN2024'));
+        }).toList();
+
+        realStudents.sort((a, b) {
+          final rA = int.tryParse(a['roll_no']?.toString() ?? '999') ?? 999;
+          final rB = int.tryParse(b['roll_no']?.toString() ?? '999') ?? 999;
+          return rA.compareTo(rB);
+        });
+
+        final realDefaulters = rawDefaulters.where((s) {
+          final prn = (s['prn'] ?? '').toString();
+          return prn.startsWith('20240716') || (int.tryParse(s['roll_no']?.toString() ?? '') != null && int.parse(s['roll_no'].toString()) <= 77 && !prn.startsWith('PRN2024'));
+        }).toList();
+
+        realDefaulters.sort((a, b) {
+          final rA = int.tryParse(a['roll_no']?.toString() ?? '999') ?? 999;
+          final rB = int.tryParse(b['roll_no']?.toString() ?? '999') ?? 999;
+          return rA.compareTo(rB);
+        });
+
         setState(() {
           _dashboardData = data;
-          _allStudents = data['students'] ?? [];
-          _defaulters = data['defaulters'] ?? [];
+          _allStudents = realStudents;
+          _defaulters = realDefaulters;
           _applySearch();
           _isLoading = false;
         });
@@ -2683,7 +2811,7 @@ class _ClassTeacherPortalScreenState extends State<ClassTeacherPortalScreen> wit
                       SizedBox(width: 8),
                       Expanded(
                         child: Text(
-                          'DEFAULTER NOTICE: Attendance is below mandatory 50.0% threshold. Immediate remediation required.',
+                          'DEFAULTER NOTICE: Attendance is below 50.0% mandatory threshold.',
                           style: TextStyle(color: Colors.red, fontSize: 12, fontWeight: FontWeight.w600),
                         ),
                       ),
@@ -2728,6 +2856,7 @@ class _ClassTeacherPortalScreenState extends State<ClassTeacherPortalScreen> wit
     );
   }
 
+  // DETAILED MODAL SHOWING WHO IS PRESENT & WHO IS ABSENT WITH DIRECT DOWNLOAD BUTTON
   Future<void> _showLectureDetailsModal(String sessionId) async {
     showDialog(
       context: context,
@@ -2747,6 +2876,7 @@ class _ClassTeacherPortalScreenState extends State<ClassTeacherPortalScreen> wit
         final lecture = data['lecture'];
         final presentStudents = (data['present_students'] as List?) ?? [];
         final absentStudents = (data['absent_students'] as List?) ?? [];
+        final downloadExcelUrl = '${AppConfig.baseUrl}/api/reports/session/$sessionId/export-excel';
 
         if (!mounted) return;
         showModalBottomSheet(
@@ -2756,7 +2886,7 @@ class _ClassTeacherPortalScreenState extends State<ClassTeacherPortalScreen> wit
           builder: (ctx) => DefaultTabController(
             length: 2,
             child: SizedBox(
-              height: MediaQuery.of(context).size.height * 0.8,
+              height: MediaQuery.of(context).size.height * 0.85,
               child: Padding(
                 padding: const EdgeInsets.all(16.0),
                 child: Column(
@@ -2770,21 +2900,65 @@ class _ClassTeacherPortalScreenState extends State<ClassTeacherPortalScreen> wit
                         decoration: BoxDecoration(color: Colors.grey.shade300, borderRadius: BorderRadius.circular(2)),
                       ),
                     ),
-                    Text(
-                      '${lecture['subject_name']} (${lecture['subject_code']})',
-                      style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 18),
+                    Row(
+                      children: [
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                '${lecture['subject_name']} (${lecture['subject_code']})',
+                                style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 18),
+                              ),
+                              Text(
+                                'Faculty: ${lecture['teacher_name']} | Time: ${lecture['started_at_ist'] ?? lecture['date']}',
+                                style: const TextStyle(color: Colors.grey, fontSize: 12),
+                              ),
+                            ],
+                          ),
+                        ),
+                        // DIRECT DOWNLOAD BUTTON FOR THIS SPECIFIC LECTURE
+                        ElevatedButton.icon(
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: Colors.green.shade700,
+                            foregroundColor: Colors.white,
+                            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                          ),
+                          onPressed: () {
+                            directDownloadUrl(context, downloadExcelUrl, '${lecture['subject_name']} Lecture Excel');
+                          },
+                          icon: const Icon(Icons.download_rounded, size: 16),
+                          label: const Text('Download Excel', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12)),
+                        ),
+                      ],
                     ),
-                    Text(
-                      'Faculty: ${lecture['teacher_name']} | Time (IST): ${lecture['started_at_ist'] ?? lecture['date']}',
-                      style: const TextStyle(color: Colors.grey, fontSize: 12),
-                    ),
-                    const SizedBox(height: 12),
+                    const SizedBox(height: 14),
+
                     TabBar(
-                      labelColor: Colors.indigo,
-                      indicatorColor: Colors.indigo,
+                      labelColor: const Color(0xFF1E3A8A),
+                      indicatorColor: const Color(0xFF1E3A8A),
                       tabs: [
-                        Tab(text: '✅ Present (${presentStudents.length})'),
-                        Tab(text: '❌ Absent (${absentStudents.length})'),
+                        Tab(
+                          child: Row(
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            children: [
+                              const Icon(Icons.check_circle_rounded, color: Colors.green, size: 18),
+                              const SizedBox(width: 6),
+                              Text('Present (${presentStudents.length})', style: const TextStyle(fontWeight: FontWeight.bold)),
+                            ],
+                          ),
+                        ),
+                        Tab(
+                          child: Row(
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            children: [
+                              const Icon(Icons.cancel_rounded, color: Colors.red, size: 18),
+                              const SizedBox(width: 6),
+                              Text('Absent (${absentStudents.length})', style: const TextStyle(fontWeight: FontWeight.bold)),
+                            ],
+                          ),
+                        ),
                       ],
                     ),
                     const SizedBox(height: 10),
@@ -2797,33 +2971,49 @@ class _ClassTeacherPortalScreenState extends State<ClassTeacherPortalScreen> wit
                                   itemCount: presentStudents.length,
                                   itemBuilder: (ctx, idx) {
                                     final s = presentStudents[idx];
-                                    return ListTile(
-                                      leading: CircleAvatar(
-                                        backgroundColor: Colors.green.shade100,
-                                        child: Text('${s['roll_no'] ?? '-'}', style: TextStyle(fontWeight: FontWeight.bold, color: Colors.green.shade900)),
+                                    return Card(
+                                      margin: const EdgeInsets.symmetric(vertical: 3),
+                                      elevation: 0.5,
+                                      child: ListTile(
+                                        leading: CircleAvatar(
+                                          backgroundColor: Colors.green.shade100,
+                                          child: Text('${s['roll_no'] ?? '-'}', style: TextStyle(fontWeight: FontWeight.bold, color: Colors.green.shade900)),
+                                        ),
+                                        title: Text(s['student_name'] ?? 'Student', style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 13)),
+                                        subtitle: Text('PRN: ${s['prn']} | Marked: ${s['time_only'] ?? ''}'),
+                                        trailing: Container(
+                                          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                                          decoration: BoxDecoration(color: Colors.green.shade50, borderRadius: BorderRadius.circular(6)),
+                                          child: Text('${s['distance']}m', style: TextStyle(fontWeight: FontWeight.bold, color: Colors.green.shade900)),
+                                        ),
                                       ),
-                                      title: Text(s['student_name'] ?? 'Student', style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 13)),
-                                      subtitle: Text('PRN: ${s['prn']} | Marked: ${s['time_only'] ?? ''}'),
-                                      trailing: Text('${s['distance']}m', style: const TextStyle(fontWeight: FontWeight.bold, color: Colors.indigo)),
                                     );
                                   },
                                 ),
                           absentStudents.isEmpty
                               ? const Center(
-                                  child: Text('Zero absentees! Full class attended.', style: TextStyle(color: Colors.green)),
+                                  child: Text('Zero absentees! 100% attendance.', style: TextStyle(color: Colors.green, fontWeight: FontWeight.bold)),
                                 )
                               : ListView.builder(
                                   itemCount: absentStudents.length,
                                   itemBuilder: (ctx, idx) {
                                     final s = absentStudents[idx];
-                                    return ListTile(
-                                      leading: CircleAvatar(
-                                        backgroundColor: Colors.red.shade100,
-                                        child: Text('${s['roll_no'] ?? '-'}', style: TextStyle(fontWeight: FontWeight.bold, color: Colors.red.shade900)),
+                                    return Card(
+                                      margin: const EdgeInsets.symmetric(vertical: 3),
+                                      elevation: 0.5,
+                                      child: ListTile(
+                                        leading: CircleAvatar(
+                                          backgroundColor: Colors.red.shade100,
+                                          child: Text('${s['roll_no'] ?? '-'}', style: TextStyle(fontWeight: FontWeight.bold, color: Colors.red.shade900)),
+                                        ),
+                                        title: Text(s['student_name'] ?? 'Student', style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 13)),
+                                        subtitle: Text('PRN: ${s['prn']}'),
+                                        trailing: Container(
+                                          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                                          decoration: BoxDecoration(color: Colors.red.shade50, borderRadius: BorderRadius.circular(6)),
+                                          child: const Text('ABSENT', style: TextStyle(color: Colors.red, fontWeight: FontWeight.bold, fontSize: 11)),
+                                        ),
                                       ),
-                                      title: Text(s['student_name'] ?? 'Student', style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 13)),
-                                      subtitle: Text('PRN: ${s['prn']}'),
-                                      trailing: const Text('ABSENT', style: TextStyle(color: Colors.red, fontWeight: FontWeight.bold, fontSize: 12)),
                                     );
                                   },
                                 ),
@@ -2849,12 +3039,12 @@ class _ClassTeacherPortalScreenState extends State<ClassTeacherPortalScreen> wit
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: Text(_dashboardData != null ? '${_dashboardData!['class_name']} Defaulters (<50%)' : 'Class Teacher Portal'),
+        title: Text(_dashboardData != null ? '${_dashboardData!['class_name']} Class Teacher Portal' : 'Class Teacher Portal'),
         actions: [
           IconButton(
             icon: const Icon(Icons.file_download_outlined),
-            tooltip: 'Download Master Excel',
-            onPressed: () => showMasterExcelDialog(context),
+            tooltip: 'Direct Download Master Excel',
+            onPressed: () => directDownloadUrl(context, '${AppConfig.baseUrl}/api/reports/export-master-excel', 'Master Excel'),
           ),
           const AttendioPopupMenu(),
         ],
@@ -2866,16 +3056,16 @@ class _ClassTeacherPortalScreenState extends State<ClassTeacherPortalScreen> wit
           indicatorWeight: 3,
           tabs: [
             Tab(
+              icon: const Icon(Icons.history_edu_rounded),
+              text: '📚 Lectures & Absentees (${_lectureHistory.length})',
+            ),
+            Tab(
               icon: const Icon(Icons.warning_amber_rounded),
               text: '🚨 Defaulters (<50%) (${_defaulters.length})',
             ),
             Tab(
               icon: const Icon(Icons.groups_rounded),
-              text: '👥 All Students (${_allStudents.length})',
-            ),
-            Tab(
-              icon: const Icon(Icons.history_edu_rounded),
-              text: '📚 Lectures (${_lectureHistory.length})',
+              text: '👥 All 77 Students (${_allStudents.length})',
             ),
           ],
         ),
@@ -2896,7 +3086,7 @@ class _ClassTeacherPortalScreenState extends State<ClassTeacherPortalScreen> wit
                 )
               : Column(
                   children: [
-                    // Quick Search Bar
+                    // Search bar for Students / Defaulters
                     Padding(
                       padding: const EdgeInsets.all(12.0),
                       child: TextField(
@@ -2932,7 +3122,163 @@ class _ClassTeacherPortalScreenState extends State<ClassTeacherPortalScreen> wit
                       child: TabBarView(
                         controller: _tabController,
                         children: [
-                          // Tab 1: Defaulters List (< 50%)
+                          // -------------------------------------------------------------
+                          // TAB 1: CONDUCTED LECTURES & ABSENTEES (PRESENT VS ABSENT)
+                          // -------------------------------------------------------------
+                          _isLoadingLectures
+                              ? const Center(child: CircularProgressIndicator())
+                              : _lectureHistory.isEmpty
+                                  ? const Center(
+                                      child: Padding(
+                                        padding: EdgeInsets.all(24.0),
+                                        child: Text('No historical lectures conducted yet.', style: TextStyle(color: Colors.grey)),
+                                      ),
+                                    )
+                                  : ListView.builder(
+                                      padding: const EdgeInsets.symmetric(horizontal: 12),
+                                      itemCount: _lectureHistory.length,
+                                      itemBuilder: (context, index) {
+                                        final l = _lectureHistory[index];
+                                        final int presCount = l['present_count'] ?? 0;
+                                        final int absCount = l['absent_count'] ?? (77 - presCount);
+                                        final String sessionId = l['session_id'];
+
+                                        return Card(
+                                          margin: const EdgeInsets.symmetric(vertical: 6),
+                                          elevation: 2,
+                                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+                                          child: Padding(
+                                            padding: const EdgeInsets.all(14.0),
+                                            child: Column(
+                                              crossAxisAlignment: CrossAxisAlignment.start,
+                                              children: [
+                                                Row(
+                                                  children: [
+                                                    CircleAvatar(
+                                                      backgroundColor: Colors.indigo.shade100,
+                                                      child: const Icon(Icons.school, color: Color(0xFF1E3A8A)),
+                                                    ),
+                                                    const SizedBox(width: 12),
+                                                    Expanded(
+                                                      child: Column(
+                                                        crossAxisAlignment: CrossAxisAlignment.start,
+                                                        children: [
+                                                          Text(
+                                                            '${l['subject_name']} (${l['subject_code']})',
+                                                            style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
+                                                          ),
+                                                          Text(
+                                                            'Faculty: ${l['teacher_name']} • T.Y. CSE',
+                                                            style: TextStyle(color: Colors.grey.shade700, fontSize: 12),
+                                                          ),
+                                                        ],
+                                                      ),
+                                                    ),
+                                                  ],
+                                                ),
+                                                const SizedBox(height: 10),
+                                                Text(
+                                                  'Conducted Time (IST): ${l['started_at_ist'] ?? l['date']}',
+                                                  style: const TextStyle(fontSize: 12, color: Colors.black87),
+                                                ),
+                                                const SizedBox(height: 10),
+
+                                                // Present and Absent Visual Counters
+                                                Row(
+                                                  children: [
+                                                    Expanded(
+                                                      child: Container(
+                                                        padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 10),
+                                                        decoration: BoxDecoration(
+                                                          color: Colors.green.shade50,
+                                                          borderRadius: BorderRadius.circular(8),
+                                                          border: Border.all(color: Colors.green.shade200),
+                                                        ),
+                                                        child: Row(
+                                                          mainAxisAlignment: MainAxisAlignment.center,
+                                                          children: [
+                                                            const Icon(Icons.check_circle_rounded, color: Colors.green, size: 18),
+                                                            const SizedBox(width: 6),
+                                                            Text(
+                                                              '$presCount Present',
+                                                              style: TextStyle(fontWeight: FontWeight.bold, color: Colors.green.shade900, fontSize: 13),
+                                                            ),
+                                                          ],
+                                                        ),
+                                                      ),
+                                                    ),
+                                                    const SizedBox(width: 8),
+                                                    Expanded(
+                                                      child: Container(
+                                                        padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 10),
+                                                        decoration: BoxDecoration(
+                                                          color: Colors.red.shade50,
+                                                          borderRadius: BorderRadius.circular(8),
+                                                          border: Border.all(color: Colors.red.shade200),
+                                                        ),
+                                                        child: Row(
+                                                          mainAxisAlignment: MainAxisAlignment.center,
+                                                          children: [
+                                                            const Icon(Icons.cancel_rounded, color: Colors.red, size: 18),
+                                                            const SizedBox(width: 6),
+                                                            Text(
+                                                              '$absCount Absent',
+                                                              style: TextStyle(fontWeight: FontWeight.bold, color: Colors.red.shade900, fontSize: 13),
+                                                            ),
+                                                          ],
+                                                        ),
+                                                      ),
+                                                    ),
+                                                  ],
+                                                ),
+                                                const SizedBox(height: 12),
+
+                                                // Action Buttons: View Absentees List & Direct Download Excel
+                                                Row(
+                                                  children: [
+                                                    Expanded(
+                                                      child: OutlinedButton.icon(
+                                                        style: OutlinedButton.styleFrom(
+                                                          foregroundColor: const Color(0xFF1E3A8A),
+                                                          side: const BorderSide(color: Color(0xFF1E3A8A)),
+                                                          padding: const EdgeInsets.symmetric(vertical: 10),
+                                                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                                                        ),
+                                                        onPressed: () => _showLectureDetailsModal(sessionId),
+                                                        icon: const Icon(Icons.visibility_rounded, size: 16),
+                                                        label: const Text('View Absentees List', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12)),
+                                                      ),
+                                                    ),
+                                                    const SizedBox(width: 8),
+                                                    ElevatedButton.icon(
+                                                      style: ElevatedButton.styleFrom(
+                                                        backgroundColor: Colors.green.shade700,
+                                                        foregroundColor: Colors.white,
+                                                        padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 12),
+                                                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                                                      ),
+                                                      onPressed: () {
+                                                        directDownloadUrl(
+                                                          context,
+                                                          '${AppConfig.baseUrl}/api/reports/session/$sessionId/export-excel',
+                                                          '${l['subject_name']} Attendance Excel',
+                                                        );
+                                                      },
+                                                      icon: const Icon(Icons.download_rounded, size: 16),
+                                                      label: const Text('Excel', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12)),
+                                                    ),
+                                                  ],
+                                                ),
+                                              ],
+                                            ),
+                                          ),
+                                        );
+                                      },
+                                    ),
+
+                          // -------------------------------------------------------------
+                          // TAB 2: DEFAULTERS LIST (< 50%)
+                          // -------------------------------------------------------------
                           _filteredDefaulters.isEmpty
                               ? const Center(
                                   child: Padding(
@@ -3003,7 +3349,9 @@ class _ClassTeacherPortalScreenState extends State<ClassTeacherPortalScreen> wit
                                   },
                                 ),
 
-                          // Tab 2: All 77 Students
+                          // -------------------------------------------------------------
+                          // TAB 3: ALL 77 STUDENTS (SORTED ROLL 1 TO 77)
+                          // -------------------------------------------------------------
                           _filteredStudents.isEmpty
                               ? const Center(child: Text('No students match query.'))
                               : ListView.builder(
@@ -3063,58 +3411,6 @@ class _ClassTeacherPortalScreenState extends State<ClassTeacherPortalScreen> wit
                                     );
                                   },
                                 ),
-
-                          // Tab 3: Chronological Lecture History & Absentees
-                          _isLoadingLectures
-                              ? const Center(child: CircularProgressIndicator())
-                              : _lectureHistory.isEmpty
-                                  ? const Center(
-                                      child: Padding(
-                                        padding: EdgeInsets.all(24.0),
-                                        child: Text('No historical lectures conducted yet.', style: TextStyle(color: Colors.grey)),
-                                      ),
-                                    )
-                                  : ListView.builder(
-                                      padding: const EdgeInsets.symmetric(horizontal: 12),
-                                      itemCount: _lectureHistory.length,
-                                      itemBuilder: (context, index) {
-                                        final l = _lectureHistory[index];
-                                        return Card(
-                                          margin: const EdgeInsets.symmetric(vertical: 4),
-                                          elevation: 1,
-                                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-                                          child: ListTile(
-                                            leading: CircleAvatar(
-                                              backgroundColor: Colors.indigo.shade100,
-                                              child: const Icon(Icons.class_rounded, color: Colors.indigo),
-                                            ),
-                                            title: Text(
-                                              '${l['subject_name']} (${l['subject_code']})',
-                                              style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14),
-                                            ),
-                                            subtitle: Text(
-                                              '${l['started_at_ist'] ?? l['date']}\nFaculty: ${l['teacher_name']} | 77 Enrolled',
-                                              style: const TextStyle(fontSize: 12),
-                                            ),
-                                            trailing: Column(
-                                              mainAxisAlignment: MainAxisAlignment.center,
-                                              crossAxisAlignment: CrossAxisAlignment.end,
-                                              children: [
-                                                Text(
-                                                  '${l['present_count']} / 77',
-                                                  style: const TextStyle(color: Colors.green, fontWeight: FontWeight.bold, fontSize: 13),
-                                                ),
-                                                Text(
-                                                  '${l['absent_count']} Absent',
-                                                  style: const TextStyle(color: Colors.red, fontSize: 11, fontWeight: FontWeight.bold),
-                                                ),
-                                              ],
-                                            ),
-                                            onTap: () => _showLectureDetailsModal(l['session_id']),
-                                          ),
-                                        );
-                                      },
-                                    ),
                         ],
                       ),
                     ),
