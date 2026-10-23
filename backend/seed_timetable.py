@@ -6,7 +6,7 @@ COURSES = [
     ("CA", "Computer Algorithm", "CS502", "Dr. S. B. Patil", "patil@bvcoek.edu.in"),
     ("JP", "Java Programming", "CS503", "Ms. A. B. Pawar", "pawar@bvcoek.edu.in"),
     ("OOMD", "Object Oriented Modeling & Design", "CS504", "Mr. V. A. Upadhye", "teacher@gcek.ac.in"),
-    ("MDM-03", "Multi-disciplinary Minor - 03", "CS505", "Ms. M. P. Kulkarni", "kulkarni@bvcoek.edu.in"),
+    ("MDM-03", "Multi-disciplinary Minor - 03", "CS505", "Mrs. Nayan Patil", "nayan.patil@bvcoek.edu.in"),
     ("OE-03", "Open Elective - 03", "CS506", "Ms. S. M. Bagban", "bagban@bvcoek.edu.in"),
 ]
 

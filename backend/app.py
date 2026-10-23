@@ -41,6 +41,61 @@ def seed_initial_data():
         except Exception as e:
             print(f"Auto-seed 77 note: {e}")
 
+        # Ensure only the official 77 students are present (remove legacy test dummy students)
+        try:
+            old_dummies = StudentProfile.query.filter(~StudentProfile.prn.like('20240716%')).all()
+            if old_dummies:
+                for dummy in old_dummies:
+                    u_id = dummy.user_id
+                    db.session.delete(dummy)
+                    if u_id:
+                        u = db.session.get(User, u_id)
+                        if u:
+                            db.session.delete(u)
+                db.session.commit()
+                print(f"[CLEANUP] Removed {len(old_dummies)} legacy dummy students.")
+        except Exception as e:
+            print(f"Cleanup legacy students note: {e}")
+
+        # Ensure Mrs. Nayan Patil is updated for MDM-03 (replacing Kulkarni)
+        try:
+            kulkarni_user = User.query.filter(
+                (User.email == 'kulkarni@bvcoek.edu.in') | 
+                (User.full_name.like('%Kulkarni%'))
+            ).filter(User.role == 'TEACHER').first()
+            if kulkarni_user:
+                kulkarni_user.full_name = "Mrs. Nayan Patil"
+                kulkarni_user.email = "nayan.patil@bvcoek.edu.in"
+                if kulkarni_user.teacher_profile:
+                    kulkarni_user.teacher_profile.designation = "Assistant Professor (MDM-03)"
+                db.session.commit()
+
+            nayan_user = User.query.filter_by(email="nayan.patil@bvcoek.edu.in").first()
+            if not nayan_user:
+                college = College.query.filter_by(code='BVCOEK').first() or College.query.first()
+                dept = Department.query.filter_by(college_id=college.id).first() if college else None
+                if college:
+                    nayan_user = User(
+                        college_id=college.id,
+                        email="nayan.patil@bvcoek.edu.in",
+                        full_name="Mrs. Nayan Patil",
+                        role="TEACHER"
+                    )
+                    nayan_user.set_password("Teacher@1234")
+                    db.session.add(nayan_user)
+                    db.session.flush()
+                    t_prof = TeacherProfile(
+                        user_id=nayan_user.id,
+                        college_id=college.id,
+                        department_id=dept.id if dept else None,
+                        employee_id="FAC-MDM",
+                        designation="Assistant Professor"
+                    )
+                    db.session.add(t_prof)
+                    db.session.commit()
+        except Exception as e:
+            print(f"Update Mrs. Nayan Patil note: {e}")
+
         # Ensure Timetable from Bharati Vidyapeeth is present
         try:
             if TimetableSlot.query.count() < 10:
@@ -326,6 +381,7 @@ def register_college():
 # CORE ATTENDANCE API (100% Backwards Compatible + Enhanced)
 # -------------------------------------------------------------
 @app.route('/api/create-session', methods=['POST', 'GET'])
+@app.route('/api/session/create', methods=['POST', 'GET'])
 def create_session():
     """
     Creates or starts an attendance session.
@@ -350,7 +406,7 @@ def create_session():
         return jsonify({'status': 'failed', 'message': 'No registered teacher found.'}), 400
 
     data = request.json or {}
-    slot_id = data.get('slot_id')
+    slot_id = data.get('slot_id') or data.get('timetable_slot_id')
     subject_id = data.get('subject_id')
     slot = None
 
@@ -393,7 +449,7 @@ def create_session():
         teacher_lat = 16.6631
         teacher_lng = 74.2642
 
-    proximity_radius = float(data.get('proximity_radius', 50.0))
+    proximity_radius = float(data.get('proximity_radius_meters') or data.get('proximity_radius', 50.0))
 
     token = QRTokenService.generate_token()
     session = LectureSession(
@@ -422,7 +478,10 @@ def create_session():
         'status': 'success',
         'session_id': session.id,
         'url': student_url,
+        'student_url': student_url,
         'token': token,
+        'active_token': token,
+        'current_token': token,
         'valid_for_seconds': app.config['QR_EXPIRY_SECONDS'],
         'class_name': ac_class.name,
         'subject_name': subject.name,
@@ -431,7 +490,7 @@ def create_session():
         'teacher_lng': teacher_lng,
         'proximity_radius_meters': proximity_radius,
         'room': slot.room if slot and slot.room else 'LH2'
-    }), 200
+    }), 201
 
 @app.route('/api/mark-attendance', methods=['POST'])
 def mark_attendance():
@@ -518,6 +577,7 @@ def get_teacher_timetable():
     }), 200
 
 @app.route('/api/teacher/session/<session_id>/live-qr', methods=['GET'])
+@app.route('/api/session/<session_id>/rotate-token', methods=['GET', 'POST'])
 def get_live_rotating_qr(session_id):
     """
     Retrieves or rotates the 80-second dynamic QR code token for classroom projector.
@@ -536,14 +596,19 @@ def get_live_rotating_qr(session_id):
     return jsonify({
         'status': 'success',
         'session_id': session.id,
+        'token': token,
         'current_token': token,
+        'active_token': token,
         'token_sequence': session.token_sequence,
         'seconds_remaining': seconds_remaining,
+        'valid_for_seconds': seconds_remaining,
+        'url': student_url,
         'student_url': student_url,
         'max_validity_seconds': app.config['QR_EXPIRY_SECONDS']
     }), 200
 
 @app.route('/api/teacher/session/<session_id>/end', methods=['POST'])
+@app.route('/api/session/<session_id>/end', methods=['POST'])
 def end_session(session_id):
     session = db.session.get(LectureSession, session_id)
     if not session:
