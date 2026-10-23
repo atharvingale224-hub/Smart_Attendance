@@ -1,7 +1,13 @@
 import uuid
-from datetime import datetime
+from datetime import datetime, timezone, timedelta
 from flask_sqlalchemy import SQLAlchemy
 from werkzeug.security import generate_password_hash, check_password_hash
+
+# Indian Standard Time (IST: UTC + 5:30)
+IST = timezone(timedelta(hours=5, minutes=30))
+
+def get_ist_now():
+    return datetime.now(IST).replace(tzinfo=None)
 
 db = SQLAlchemy()
 
@@ -96,7 +102,9 @@ class User(db.Model):
             'created_at': self.created_at.isoformat() if self.created_at else None
         }
         if self.role == 'TEACHER' and self.teacher_profile:
-            data['teacher_profile'] = self.teacher_profile.to_dict()
+            t_data = self.teacher_profile.to_dict()
+            data['teacher_profile'] = t_data
+            data['is_class_teacher'] = t_data.get('is_class_teacher', False)
         elif self.role == 'STUDENT' and self.student_profile:
             data['student_profile'] = self.student_profile.to_dict()
         return data
@@ -231,6 +239,11 @@ class TeacherProfile(db.Model):
     sessions = db.relationship('LectureSession', backref='teacher')
 
     def to_dict(self):
+        email = self.user.email if self.user else ""
+        is_ct = (
+            email in ["teacher@gcek.ac.in", "upadhye@bvcoek.edu.in"] or 
+            "Class Teacher" in (self.designation or "")
+        )
         return {
             'id': self.id,
             'user_id': self.user_id,
@@ -240,7 +253,8 @@ class TeacherProfile(db.Model):
             'employee_id': self.employee_id,
             'designation': self.designation,
             'full_name': self.user.full_name if self.user else None,
-            'email': self.user.email if self.user else None
+            'email': email,
+            'is_class_teacher': is_ct
         }
 
 class TimetableSlot(db.Model):
@@ -286,7 +300,7 @@ class LectureSession(db.Model):
     class_id = db.Column(db.String(36), db.ForeignKey('academic_classes.id', ondelete='CASCADE'), nullable=False)
     subject_id = db.Column(db.String(36), db.ForeignKey('subjects.id', ondelete='CASCADE'), nullable=False)
     status = db.Column(db.String(20), default='ACTIVE') # 'ACTIVE', 'CLOSED', 'CANCELLED'
-    started_at = db.Column(db.DateTime, default=datetime.utcnow)
+    started_at = db.Column(db.DateTime, default=get_ist_now)
     closed_at = db.Column(db.DateTime, nullable=True)
     
     # Secure Dynamic Rotating Token
@@ -333,7 +347,7 @@ class AttendanceRecord(db.Model):
     session_id = db.Column(db.String(36), db.ForeignKey('lecture_sessions.id', ondelete='CASCADE'), nullable=False, index=True)
     student_id = db.Column(db.String(36), db.ForeignKey('student_profiles.id', ondelete='CASCADE'), nullable=False, index=True)
     prn = db.Column(db.String(50), nullable=False, index=True)
-    timestamp = db.Column(db.DateTime, default=datetime.utcnow)
+    timestamp = db.Column(db.DateTime, default=get_ist_now)
     distance_meters = db.Column(db.Float, nullable=False)
     accuracy_meters = db.Column(db.Float, nullable=False, default=10.0)
     status = db.Column(db.String(20), default='PRESENT') # 'PRESENT', 'EXCUSED'
@@ -344,6 +358,8 @@ class AttendanceRecord(db.Model):
     )
 
     def to_dict(self):
+        ts_str = self.timestamp.strftime("%Y-%m-%d %I:%M:%S %p") if self.timestamp else None
+        time_12h = self.timestamp.strftime("%I:%M %p") if self.timestamp else None
         return {
             'id': self.id,
             'college_id': self.college_id,
@@ -352,7 +368,8 @@ class AttendanceRecord(db.Model):
             'prn': self.prn,
             'student_name': self.student.user.full_name if self.student and self.student.user else None,
             'roll_no': self.student.roll_no if self.student else None,
-            'timestamp': self.timestamp.strftime("%Y-%m-%d %H:%M:%S") if self.timestamp else None,
+            'timestamp': ts_str,
+            'time_12h': time_12h,
             'distance_meters': round(self.distance_meters, 2),
             'accuracy_meters': round(self.accuracy_meters, 2),
             'status': self.status

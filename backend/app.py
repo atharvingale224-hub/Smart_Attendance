@@ -13,7 +13,8 @@ from config import Config
 from models import (
     db, College, GeofenceConfig, User, Department, 
     AcademicClass, Subject, StudentProfile, TeacherProfile, 
-    TimetableSlot, LectureSession, AttendanceRecord, ProxyRiskLog
+    TimetableSlot, LectureSession, AttendanceRecord, ProxyRiskLog,
+    IST, get_ist_now
 )
 from auth import generate_auth_token, require_auth, require_role, enforce_college_isolation
 from services import GeoService, QRTokenService, AttendanceService, ReportService
@@ -244,6 +245,11 @@ def login():
         return jsonify({'status': 'failed', 'message': 'Email and password are required.'}), 400
 
     user = User.query.filter_by(email=email).first()
+    if not user and email == "upadhye@bvcoek.edu.in":
+        user = User.query.filter_by(email="teacher@gcek.ac.in").first()
+    elif not user and email == "teacher@gcek.ac.in":
+        user = User.query.filter_by(email="upadhye@bvcoek.edu.in").first()
+
     if not user or not user.check_password(password):
         return jsonify({'status': 'failed', 'message': 'Invalid email or password credentials.'}), 401
 
@@ -400,7 +406,7 @@ def create_session():
         teacher_lng=teacher_lng,
         proximity_radius_meters=proximity_radius,
         status='ACTIVE',
-        started_at=datetime.utcnow(),
+        started_at=get_ist_now(),
         current_token=token,
         token_generated_at=time.time(),
         token_sequence=1
@@ -480,8 +486,11 @@ def get_report():
     formatted_records = [
         {
             'prn': r.prn,
+            'student_name': r.student.user.full_name if r.student and r.student.user else '',
+            'roll_no': r.student.roll_no if r.student else '',
             'session_id': r.session_id,
-            'timestamp': r.timestamp.strftime("%Y-%m-%d %H:%M:%S") if r.timestamp else "",
+            'timestamp': r.timestamp.strftime("%Y-%m-%d %I:%M:%S %p") if r.timestamp else "",
+            'time_only': r.timestamp.strftime("%I:%M %p") if r.timestamp else "",
             'distance': round(r.distance_meters, 2)
         }
         for r in records
@@ -541,7 +550,7 @@ def end_session(session_id):
         return jsonify({'status': 'failed', 'message': 'Session not found.'}), 404
 
     session.status = 'CLOSED'
-    session.closed_at = datetime.utcnow()
+    session.closed_at = get_ist_now()
     db.session.commit()
 
     summary = ReportService.get_session_attendance(session.id)
@@ -668,6 +677,9 @@ def get_defaulter_report():
 
     if not class_id:
         return jsonify({'status': 'failed', 'message': 'No classes found.'}), 404
+
+    data = ReportService.get_defaulter_list(class_id, threshold)
+    return jsonify({'status': 'success', 'data': data}), 200
 
 @app.route('/api/student/dashboard', methods=['GET'])
 def get_student_dashboard():
@@ -820,20 +832,35 @@ def get_weekly_timetable():
 
 @app.route('/api/timetable/today', methods=['GET'])
 def get_today_timetable():
-    """Returns today's scheduled lectures from timetable for quick teacher selection"""
-    now = datetime.now()
+    """Returns today's scheduled lectures from timetable for quick teacher selection, filtered by teacher if authenticated"""
+    now = datetime.now(IST)
     day_name = now.strftime('%A')
     
     college = College.query.filter_by(code='BVCOEK').first() or College.query.first()
     college_id = college.id if college else None
 
-    slots = TimetableSlot.query.filter_by(college_id=college_id, day_of_week=day_name).order_by(TimetableSlot.start_time).all()
-    all_slots = TimetableSlot.query.filter_by(college_id=college_id).order_by(TimetableSlot.day_of_week, TimetableSlot.start_time).all()
+    # Check if teacher_id is provided in query or from Bearer token
+    teacher_id = request.args.get('teacher_id')
+    auth_header = request.headers.get('Authorization')
+    if not teacher_id and auth_header and auth_header.startswith('Bearer '):
+        from auth import verify_auth_token
+        payload = verify_auth_token(auth_header.split(' ')[1])
+        if payload and payload.get('role') == 'TEACHER':
+            user = db.session.get(User, payload['user_id'])
+            if user and user.teacher_profile:
+                teacher_id = user.teacher_profile.id
+
+    if teacher_id:
+        slots = TimetableSlot.query.filter_by(teacher_id=teacher_id, day_of_week=day_name).order_by(TimetableSlot.start_time).all()
+        all_slots = TimetableSlot.query.filter_by(teacher_id=teacher_id).order_by(TimetableSlot.day_of_week, TimetableSlot.start_time).all()
+    else:
+        slots = TimetableSlot.query.filter_by(college_id=college_id, day_of_week=day_name).order_by(TimetableSlot.start_time).all()
+        all_slots = TimetableSlot.query.filter_by(college_id=college_id).order_by(TimetableSlot.day_of_week, TimetableSlot.start_time).all()
     
     return jsonify({
         'status': 'success',
         'current_day': day_name,
-        'current_time': now.strftime('%H:%M'),
+        'current_time': now.strftime('%I:%M %p'),
         'today_slots': [s.to_dict() for s in slots],
         'slots': [s.to_dict() for s in (slots if slots else all_slots)],
         'all_slots': [s.to_dict() for s in all_slots]
@@ -872,6 +899,287 @@ def add_timetable_slot():
     db.session.commit()
 
     return jsonify({'status': 'success', 'message': 'Timetable slot created successfully!', 'slot': slot.to_dict()}), 201
+
+# -------------------------------------------------------------
+# ADMIN FACULTY & SUBJECT MANAGEMENT ENDPOINTS
+# -------------------------------------------------------------
+@app.route('/api/admin/teachers/add', methods=['POST'])
+def admin_add_teacher():
+    """College Admin endpoint to register a new teacher"""
+    data = request.json or {}
+    full_name = data.get('full_name', '').strip()
+    email = data.get('email', '').strip().lower()
+    employee_id = data.get('employee_id', '').strip()
+    designation = data.get('designation', 'Assistant Professor').strip()
+    password = data.get('password', 'Teacher@1234')
+    department_id = data.get('department_id')
+    is_class_teacher = bool(data.get('is_class_teacher', False))
+
+    if not full_name or not email:
+        return jsonify({'status': 'failed', 'message': 'Full name and email are required.'}), 400
+
+    existing_user = User.query.filter_by(email=email).first()
+    if existing_user:
+        return jsonify({'status': 'failed', 'message': f'Email {email} is already in use.'}), 400
+
+    college = College.query.filter_by(code='BVCOEK').first() or College.query.first()
+    if not college:
+        return jsonify({'status': 'failed', 'message': 'No college found.'}), 400
+
+    if not department_id:
+        dept = Department.query.filter_by(college_id=college.id).first()
+        department_id = dept.id if dept else None
+
+    if is_class_teacher and "Class Teacher" not in designation:
+        designation += " & Class Teacher"
+
+    user = User(
+        college_id=college.id,
+        email=email,
+        full_name=full_name,
+        role="TEACHER"
+    )
+    user.set_password(password)
+    db.session.add(user)
+    db.session.flush()
+
+    teacher = TeacherProfile(
+        user_id=user.id,
+        college_id=college.id,
+        department_id=department_id,
+        employee_id=employee_id or f"FAC-{user.id[:6].upper()}",
+        designation=designation
+    )
+    db.session.add(teacher)
+    db.session.commit()
+
+    return jsonify({
+        'status': 'success',
+        'message': f'Teacher {full_name} added successfully! Login: {email}',
+        'teacher': teacher.to_dict()
+    }), 201
+
+@app.route('/api/admin/subjects/add', methods=['POST'])
+def admin_add_subject():
+    """College Admin endpoint to add a new subject"""
+    data = request.json or {}
+    name = data.get('name', '').strip()
+    code = data.get('code', '').strip().upper()
+    semester = int(data.get('semester', 5))
+    department_id = data.get('department_id')
+
+    if not name or not code:
+        return jsonify({'status': 'failed', 'message': 'Subject name and code are required.'}), 400
+
+    college = College.query.filter_by(code='BVCOEK').first() or College.query.first()
+    if not college:
+        return jsonify({'status': 'failed', 'message': 'No college found.'}), 400
+
+    if not department_id:
+        dept = Department.query.filter_by(college_id=college.id).first()
+        department_id = dept.id if dept else None
+
+    existing_sub = Subject.query.filter_by(college_id=college.id, code=code).first()
+    if existing_sub:
+        return jsonify({'status': 'failed', 'message': f'Subject with code {code} already exists.'}), 400
+
+    subject = Subject(
+        college_id=college.id,
+        department_id=department_id,
+        name=name,
+        code=code,
+        semester=semester
+    )
+    db.session.add(subject)
+    db.session.commit()
+
+    return jsonify({
+        'status': 'success',
+        'message': f'Subject {name} ({code}) added successfully!',
+        'subject': subject.to_dict()
+    }), 201
+
+@app.route('/api/admin/subjects', methods=['GET'])
+def admin_get_subjects():
+    college = College.query.filter_by(code='BVCOEK').first() or College.query.first()
+    college_id = college.id if college else None
+    subjects = Subject.query.filter_by(college_id=college_id).all() if college_id else Subject.query.all()
+    return jsonify({
+        'status': 'success',
+        'subjects': [s.to_dict() for s in subjects]
+    }), 200
+
+# -------------------------------------------------------------
+# CLASS TEACHER & DEFAULTER ANALYSIS (<50%) ENDPOINTS
+# -------------------------------------------------------------
+@app.route('/api/class-teacher/dashboard-data', methods=['GET'])
+def get_class_teacher_dashboard():
+    """
+    Returns full-class attendance ledger and defaulter list (< 50%) for all 77 students,
+    including subject-wise breakdown for AI, CA, JP, OOMD, MDM-03, OE-03.
+    """
+    college = College.query.filter_by(code='BVCOEK').first() or College.query.first()
+    college_id = college.id if college else None
+
+    ac_class = AcademicClass.query.filter_by(college_id=college_id).first()
+    if not ac_class:
+        return jsonify({'status': 'failed', 'message': 'Class not found.'}), 404
+
+    # All subjects for this class
+    subjects = Subject.query.filter_by(department_id=ac_class.department_id, semester=ac_class.semester).all()
+    if not subjects:
+        subjects = Subject.query.filter_by(college_id=college_id).all()
+
+    # All sessions conducted in this class
+    conducted_sessions = LectureSession.query.filter_by(class_id=ac_class.id).all()
+    total_conducted = len(conducted_sessions)
+
+    # Subject conducted counts and session ID mappings
+    subject_sessions = {}
+    for sub in subjects:
+        sub_sess = [s.id for s in conducted_sessions if s.subject_id == sub.id]
+        subject_sessions[sub.id] = sub_sess
+
+    # Query all students in this class ordered by Roll No integer
+    students = StudentProfile.query.filter_by(class_id=ac_class.id).all()
+    def roll_sort_key(st):
+        r = st.roll_no or ""
+        num_part = ''.join(filter(str.isdigit, r))
+        return int(num_part) if num_part else 999
+    students.sort(key=roll_sort_key)
+
+    students_data = []
+    defaulters_data = []
+
+    for st in students:
+        records = AttendanceRecord.query.filter_by(student_id=st.id).all()
+        attended_session_ids = set(r.session_id for r in records)
+        total_attended = len(attended_session_ids)
+
+        # Overall percentage
+        overall_pct = round((total_attended / total_conducted * 100.0), 1) if total_conducted > 0 else 0.0
+        is_defaulter = overall_pct < 50.0  # Strict user criteria: < 50%
+
+        # Subject-wise breakdown
+        sub_breakdown = []
+        for sub in subjects:
+            sub_sess_ids = subject_sessions.get(sub.id, [])
+            sub_conducted = len(sub_sess_ids)
+            sub_attended = len(attended_session_ids.intersection(sub_sess_ids))
+            sub_pct = round((sub_attended / sub_conducted * 100.0), 1) if sub_conducted > 0 else 0.0
+            sub_breakdown.append({
+                'subject_id': sub.id,
+                'name': sub.name,
+                'code': sub.code,
+                'conducted': sub_conducted,
+                'attended': sub_attended,
+                'percentage': sub_pct,
+                'is_defaulter': sub_pct < 50.0
+            })
+
+        st_entry = {
+            'id': st.id,
+            'prn': st.prn,
+            'roll_no': st.roll_no,
+            'full_name': st.user.full_name if st.user else '',
+            'email': st.user.email if st.user else '',
+            'total_conducted': total_conducted,
+            'total_attended': total_attended,
+            'percentage': overall_pct,
+            'is_defaulter': is_defaulter,
+            'subject_breakdown': sub_breakdown
+        }
+
+        students_data.append(st_entry)
+        if is_defaulter:
+            defaulters_data.append(st_entry)
+
+    avg_pct = round(sum(s['percentage'] for s in students_data) / len(students_data), 1) if students_data else 0.0
+
+    return jsonify({
+        'status': 'success',
+        'class_name': ac_class.name,
+        'division': ac_class.division,
+        'total_conducted_sessions': total_conducted,
+        'total_students': len(students_data),
+        'defaulters_count': len(defaulters_data),
+        'good_standing_count': len(students_data) - len(defaulters_data),
+        'average_attendance_percentage': avg_pct,
+        'threshold': 50.0,
+        'defaulters': defaulters_data,
+        'students': students_data,
+        'subjects': [{'id': s.id, 'name': s.name, 'code': s.code} for s in subjects]
+    }), 200
+
+@app.route('/api/class-teacher/student/<student_id_or_prn>', methods=['GET'])
+def get_class_teacher_student_detail(student_id_or_prn):
+    """Detailed attendance audit ledger for a specific student"""
+    student = StudentProfile.query.filter(
+        (StudentProfile.id == student_id_or_prn) | 
+        (StudentProfile.prn == student_id_or_prn) | 
+        (StudentProfile.roll_no == student_id_or_prn)
+    ).first()
+
+    if not student:
+        return jsonify({'status': 'failed', 'message': f'Student {student_id_or_prn} not found.'}), 404
+
+    ac_class = student.academic_class
+    conducted_sessions = LectureSession.query.filter_by(class_id=student.class_id).all()
+    total_conducted = len(conducted_sessions)
+
+    records = AttendanceRecord.query.filter_by(student_id=student.id).order_by(AttendanceRecord.timestamp.desc()).all()
+    total_attended = len(records)
+    overall_pct = round((total_attended / total_conducted * 100.0), 1) if total_conducted > 0 else 0.0
+
+    # Subjects breakdown
+    subjects = Subject.query.filter_by(department_id=ac_class.department_id, semester=ac_class.semester).all() if ac_class else []
+    sub_stats = []
+    for sub in subjects:
+        sub_sess = [s for s in conducted_sessions if s.subject_id == sub.id]
+        total_sub = len(sub_sess)
+        sub_ids = [s.id for s in sub_sess]
+        att_sub = sum(1 for r in records if r.session_id in sub_ids)
+        sub_pct = round((att_sub / total_sub * 100.0), 1) if total_sub > 0 else 0.0
+        sub_stats.append({
+            'name': sub.name,
+            'code': sub.code,
+            'conducted': total_sub,
+            'attended': att_sub,
+            'percentage': sub_pct,
+            'is_defaulter': sub_pct < 50.0
+        })
+
+    history = [
+        {
+            'session_id': r.session_id,
+            'subject_name': r.session.subject.name if r.session and r.session.subject else 'Lecture',
+            'subject_code': r.session.subject.code if r.session and r.session.subject else '',
+            'teacher_name': r.session.teacher.user.full_name if r.session and r.session.teacher and r.session.teacher.user else 'Faculty',
+            'timestamp': r.timestamp.strftime('%Y-%m-%d %I:%M:%S %p') if r.timestamp else '',
+            'distance_meters': round(r.distance_meters, 2),
+            'status': r.status
+        }
+        for r in records
+    ]
+
+    return jsonify({
+        'status': 'success',
+        'student': {
+            'id': student.id,
+            'prn': student.prn,
+            'roll_no': student.roll_no,
+            'full_name': student.user.full_name if student.user else '',
+            'email': student.user.email if student.user else '',
+            'class_name': ac_class.name if ac_class else '',
+            'division': ac_class.division if ac_class else '',
+            'total_conducted': total_conducted,
+            'total_attended': total_attended,
+            'percentage': overall_pct,
+            'is_defaulter': overall_pct < 50.0
+        },
+        'subjects': sub_stats,
+        'history': history
+    }), 200
 
 # -------------------------------------------------------------
 # APPLICATION ENTRY POINT

@@ -36,7 +36,56 @@ class AppConfig {
   static String baseUrl = "https://smart-attendance-rbsm.onrender.com";
   static String? authToken;
   static Map<String, dynamic>? currentUser;
+
+  static bool isClassTeacher() {
+    if (currentUser == null) return false;
+    if (currentUser!['is_class_teacher'] == true) return true;
+    final tp = currentUser!['teacher_profile'];
+    if (tp != null && tp['is_class_teacher'] == true) return true;
+    final email = currentUser!['email']?.toString().toLowerCase() ?? '';
+    return email == 'upadhye@bvcoek.edu.in' || email == 'teacher@gcek.ac.in';
+  }
 }
+
+// Preset Teachers for Quick Switching & Testing
+final List<Map<String, String>> presetFaculty = [
+  {
+    'name': 'Prof. V. A. Upadhye',
+    'subject': 'OOMD (CS504) - Class Teacher',
+    'email': 'upadhye@bvcoek.edu.in',
+    'password': 'Teacher@1234',
+  },
+  {
+    'name': 'Mr. K. P. Nilje',
+    'subject': 'AI (Artificial Intelligence, CS501)',
+    'email': 'nilje@bvcoek.edu.in',
+    'password': 'Teacher@1234',
+  },
+  {
+    'name': 'Dr. S. B. Patil',
+    'subject': 'CA (Computer Algorithm, CS502)',
+    'email': 'patil@bvcoek.edu.in',
+    'password': 'Teacher@1234',
+  },
+  {
+    'name': 'Ms. A. B. Pawar',
+    'subject': 'JP (Java Programming, CS503)',
+    'email': 'pawar@bvcoek.edu.in',
+    'password': 'Teacher@1234',
+  },
+  {
+    'name': 'Ms. M. P. Kulkarni',
+    'subject': 'MDM-03 (Minor 3, CS505)',
+    'email': 'kulkarni@bvcoek.edu.in',
+    'password': 'Teacher@1234',
+  },
+  {
+    'name': 'Ms. S. M. Bagban',
+    'subject': 'OE-03 (Elective 3, CS506)',
+    'email': 'bagban@bvcoek.edu.in',
+    'password': 'Teacher@1234',
+  },
+];
 
 // -------------------------------------------------------------
 // AUTH GATE & LOGIN SCREEN
@@ -49,7 +98,7 @@ class AuthGate extends StatefulWidget {
 }
 
 class _AuthGateState extends State<AuthGate> {
-  final _emailController = TextEditingController(text: "teacher@gcek.ac.in");
+  final _emailController = TextEditingController(text: "upadhye@bvcoek.edu.in");
   final _passwordController = TextEditingController(text: "Teacher@1234");
   final _serverUrlController = TextEditingController(text: AppConfig.baseUrl);
   bool _isLoading = false;
@@ -91,11 +140,11 @@ class _AuthGateState extends State<AuthGate> {
       }
     } on TimeoutException {
       setState(() {
-        _errorMessage = 'Cloud server connection timed out while waking up from sleep.\nRender free tier services go to sleep when idle. Please tap "Log In to Faculty Console" again now that the server is waking up!';
+        _errorMessage = 'Cloud server waking up from idle. Please tap "Log In to Faculty Console" again!';
       });
     } catch (e) {
       setState(() {
-        _errorMessage = 'Connection error: Unable to reach backend server at ${AppConfig.baseUrl}. Please check internet connection or retry.';
+        _errorMessage = 'Connection error: Unable to reach backend server at ${AppConfig.baseUrl}.';
       });
     } finally {
       if (mounted) {
@@ -107,7 +156,6 @@ class _AuthGateState extends State<AuthGate> {
   }
 
   void _bypassToDirectDashboard() {
-    // Quick prototype access mode
     Navigator.of(context).pushReplacement(
       MaterialPageRoute(builder: (_) => const TeacherDashboardScreen()),
     );
@@ -120,7 +168,7 @@ class _AuthGateState extends State<AuthGate> {
         child: SingleChildScrollView(
           padding: const EdgeInsets.all(24.0),
           child: ConstrainedBox(
-            constraints: const BoxConstraints(maxWidth: 420),
+            constraints: const BoxConstraints(maxWidth: 440),
             child: Card(
               elevation: 4,
               shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
@@ -138,11 +186,62 @@ class _AuthGateState extends State<AuthGate> {
                       style: TextStyle(fontSize: 26, fontWeight: FontWeight.bold, color: Colors.indigo),
                     ),
                     const Text(
-                      'Faculty Attendance Portal',
+                      'BVCOEK T.Y. CSE Faculty Portal',
                       textAlign: TextAlign.center,
                       style: TextStyle(fontSize: 14, color: Colors.grey),
                     ),
-                    const SizedBox(height: 24),
+                    const SizedBox(height: 20),
+
+                    // Quick Faculty Preset Selector
+                    Container(
+                      padding: const EdgeInsets.all(12),
+                      decoration: BoxDecoration(
+                        color: Colors.indigo.shade50,
+                        borderRadius: BorderRadius.circular(12),
+                        border: Border.all(color: Colors.indigo.shade200),
+                      ),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          const Text(
+                            '👨‍🏫 Quick Select Faculty Member:',
+                            style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Colors.indigo),
+                          ),
+                          const SizedBox(height: 8),
+                          DropdownButtonFormField<String>(
+                            isExpanded: true,
+                            decoration: const InputDecoration(
+                              contentPadding: EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+                              border: OutlineInputBorder(),
+                              fillColor: Colors.white,
+                              filled: true,
+                            ),
+                            value: _emailController.text,
+                            items: presetFaculty.map((f) {
+                              return DropdownMenuItem<String>(
+                                value: f['email'],
+                                child: Text(
+                                  '${f['name']} (${f['subject']})',
+                                  style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600),
+                                  overflow: TextOverflow.ellipsis,
+                                ),
+                              );
+                            }).toList(),
+                            onChanged: (email) {
+                              if (email != null) {
+                                final fac = presetFaculty.firstWhere((f) => f['email'] == email);
+                                setState(() {
+                                  _emailController.text = fac['email']!;
+                                  _passwordController.text = fac['password']!;
+                                });
+                              }
+                            },
+                          ),
+                        ],
+                      ),
+                    ),
+                    const SizedBox(height: 16),
+
                     if (_errorMessage != null)
                       Container(
                         padding: const EdgeInsets.all(12),
@@ -157,6 +256,7 @@ class _AuthGateState extends State<AuthGate> {
                           style: TextStyle(color: Colors.red.shade800, fontSize: 13),
                         ),
                       ),
+
                     TextField(
                       controller: _emailController,
                       decoration: const InputDecoration(
@@ -165,7 +265,7 @@ class _AuthGateState extends State<AuthGate> {
                         border: OutlineInputBorder(),
                       ),
                     ),
-                    const SizedBox(height: 16),
+                    const SizedBox(height: 14),
                     TextField(
                       controller: _passwordController,
                       obscureText: true,
@@ -175,17 +275,16 @@ class _AuthGateState extends State<AuthGate> {
                         border: OutlineInputBorder(),
                       ),
                     ),
-                    const SizedBox(height: 16),
+                    const SizedBox(height: 14),
                     TextField(
                       controller: _serverUrlController,
                       decoration: const InputDecoration(
-                        labelText: 'Backend Server URL',
+                        labelText: 'Cloud Server URL',
                         prefixIcon: Icon(Icons.dns_outlined),
                         border: OutlineInputBorder(),
-                        helperText: 'e.g. http://127.0.0.1:5000 or http://10.0.2.2:5000',
                       ),
                     ),
-                    const SizedBox(height: 24),
+                    const SizedBox(height: 20),
                     ElevatedButton(
                       style: ElevatedButton.styleFrom(
                         backgroundColor: Colors.indigo,
@@ -195,39 +294,24 @@ class _AuthGateState extends State<AuthGate> {
                       ),
                       onPressed: _isLoading ? null : _login,
                       child: _isLoading
-                          ? Padding(
-                              padding: const EdgeInsets.symmetric(vertical: 4),
-                              child: Row(
-                                mainAxisAlignment: MainAxisAlignment.center,
-                                children: const [
-                                  SizedBox(
-                                    height: 18,
-                                    width: 18,
-                                    child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2),
-                                  ),
-                                  SizedBox(width: 12),
-                                  Text(
-                                    'Connecting to Cloud Server...',
-                                    style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold),
-                                  ),
-                                ],
-                              ),
+                          ? Row(
+                              mainAxisAlignment: MainAxisAlignment.center,
+                              children: const [
+                                SizedBox(
+                                  height: 18,
+                                  width: 18,
+                                  child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2),
+                                ),
+                                SizedBox(width: 12),
+                                Text('Logging In...', style: TextStyle(fontWeight: FontWeight.bold)),
+                              ],
                             )
                           : const Text('Log In to Faculty Console', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
                     ),
-                    if (_isLoading)
-                      const Padding(
-                        padding: EdgeInsets.only(top: 10),
-                        child: Text(
-                          '⚡ Render free tier wakes up in ~25-35s on cold start. Please hold on...',
-                          textAlign: TextAlign.center,
-                          style: TextStyle(fontSize: 12, color: Colors.indigo, fontWeight: FontWeight.w600),
-                        ),
-                      ),
-                    const SizedBox(height: 12),
+                    const SizedBox(height: 10),
                     TextButton(
                       onPressed: _bypassToDirectDashboard,
-                      child: const Text('Skip to Attendance Dashboard (Prototype Mode)'),
+                      child: const Text('Direct Prototype Dashboard'),
                     ),
                   ],
                 ),
@@ -347,8 +431,14 @@ class _TeacherDashboardScreenState extends State<TeacherDashboardScreen> {
 
   Future<void> fetchTodayTimetable() async {
     try {
+      final headers = <String, String>{};
+      if (AppConfig.authToken != null) {
+        headers['Authorization'] = 'Bearer ${AppConfig.authToken}';
+      }
+
       final response = await http.get(
         Uri.parse('${AppConfig.baseUrl}/api/timetable/today'),
+        headers: headers,
       ).timeout(const Duration(seconds: 40));
 
       if (response.statusCode == 200) {
@@ -437,11 +527,9 @@ class _TeacherDashboardScreenState extends State<TeacherDashboardScreen> {
           secondsRemaining--;
         });
       } else {
-        // Fetch new rotated token from server
         await pollRotatedQR();
       }
 
-      // Periodically refresh attendance list every 3 seconds
       if (timer.tick % 3 == 0) {
         fetchAttendanceReport();
       }
@@ -452,148 +540,244 @@ class _TeacherDashboardScreenState extends State<TeacherDashboardScreen> {
     try {
       final response = await http.get(
         Uri.parse('${AppConfig.baseUrl}/api/teacher/session/$activeSessionId/live-qr'),
-      );
+      ).timeout(const Duration(seconds: 20));
 
       if (response.statusCode == 200) {
         final data = jsonDecode(response.body);
         setState(() {
-          currentToken = data['current_token'];
-          generatedUrl = data['student_url'];
+          currentToken = data['current_token'] ?? '';
           secondsRemaining = data['seconds_remaining'] ?? 80;
+          generatedUrl = data['student_url'] ?? generatedUrl;
         });
       }
     } catch (e) {
-      // Ignore network flutter glitch
+      // ignore
     }
   }
 
   Future<void> endSession() async {
     if (activeSessionId.isEmpty) return;
-
     try {
       final response = await http.post(
         Uri.parse('${AppConfig.baseUrl}/api/teacher/session/$activeSessionId/end'),
       );
-
-      _rotationTimer?.cancel();
-
       if (response.statusCode == 200) {
-        final data = jsonDecode(response.body);
-        final summary = data['summary'];
         setState(() {
           isSessionActive = false;
+          activeSessionId = "";
+          generatedUrl = "";
         });
-
-        if (mounted && summary != null) {
-          showDialog(
-            context: context,
-            builder: (_) => AlertDialog(
-              title: const Text('📋 Attendance Session Finalized'),
-              content: Column(
-                mainAxisSize: MainAxisSize.min,
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text('Total Enrolled: ${summary['total_enrolled']}'),
-                  Text('Present: ${summary['total_present']}'),
-                  Text('Absent: ${summary['total_absent']}'),
-                  const SizedBox(height: 8),
-                  Text(
-                    'Overall Attendance: ${summary['attendance_percentage']}%',
-                    style: const TextStyle(fontWeight: FontWeight.bold, color: Colors.indigo),
-                  ),
-                ],
-              ),
-              actions: [
-                TextButton(
-                  onPressed: () => Navigator.pop(context),
-                  child: const Text('Close'),
-                )
-              ],
-            ),
-          );
-        }
+        _rotationTimer?.cancel();
+        showSnackBar('Attendance Session Ended.');
+        fetchAttendanceReport();
       }
     } catch (e) {
-      showSnackBar('Failed to finalize session on server.');
+      showSnackBar('Error ending session.');
     }
   }
 
   Future<void> fetchAttendanceReport() async {
     try {
-      final endpoint = activeSessionId.isNotEmpty
+      final url = activeSessionId.isNotEmpty
           ? '${AppConfig.baseUrl}/api/attendance-report?session_id=$activeSessionId'
           : '${AppConfig.baseUrl}/api/attendance-report';
 
-      final response = await http.get(Uri.parse(endpoint));
+      final response = await http.get(Uri.parse(url)).timeout(const Duration(seconds: 20));
 
       if (response.statusCode == 200) {
         final data = jsonDecode(response.body);
         setState(() {
-          attendanceList = data['records'];
+          attendanceList = data['records'] ?? [];
         });
       }
     } catch (e) {
-      // Silently fail background stats polling
+      // ignore
     }
   }
 
-  void showSnackBar(String msg) {
-    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(msg)));
+  void showSnackBar(String message) {
+    if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(message)));
+    }
+  }
+
+  void _openClassTeacherPortal() {
+    Navigator.of(context).push(
+      MaterialPageRoute(builder: (_) => const ClassTeacherPortalScreen()),
+    );
+  }
+
+  void _handleLogout() {
+    AppConfig.authToken = null;
+    AppConfig.currentUser = null;
+    Navigator.of(context).pushReplacement(
+      MaterialPageRoute(builder: (_) => const AuthGate()),
+    );
   }
 
   @override
   Widget build(BuildContext context) {
+    final user = AppConfig.currentUser;
+    final isCT = AppConfig.isClassTeacher();
+
     return Scaffold(
       appBar: AppBar(
-        title: const Text('👨‍🏫 Attendio - Faculty Dashboard'),
+        title: const Text('Attendio Faculty Console'),
         actions: [
-          IconButton(
-            icon: const Icon(Icons.refresh),
-            onPressed: fetchAttendanceReport,
-            tooltip: 'Refresh Attendance List',
-          ),
+          if (isCT)
+            Padding(
+              padding: const EdgeInsets.only(right: 6.0),
+              child: ElevatedButton.icon(
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: Colors.amber.shade700,
+                  foregroundColor: Colors.white,
+                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                ),
+                onPressed: _openClassTeacherPortal,
+                icon: const Icon(Icons.school, size: 18),
+                label: const Text('Class Teacher Portal', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold)),
+              ),
+            ),
           IconButton(
             icon: const Icon(Icons.logout),
-            onPressed: () {
-              AppConfig.authToken = null;
-              Navigator.of(context).pushReplacement(
-                MaterialPageRoute(builder: (_) => const AuthGate()),
-              );
-            },
-            tooltip: 'Sign Out',
+            tooltip: 'Log Out',
+            onPressed: _handleLogout,
           ),
         ],
       ),
-      body: Padding(
-        padding: const EdgeInsets.all(16.0),
+      body: RefreshIndicator(
+        onRefresh: () async {
+          await fetchTodayTimetable();
+          await fetchAttendanceReport();
+          await _getTeacherLocation();
+        },
         child: SingleChildScrollView(
+          physics: const AlwaysScrollableScrollPhysics(),
+          padding: const EdgeInsets.all(16.0),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              // Projector Notice Banner
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
-                margin: const EdgeInsets.only(bottom: 16),
-                decoration: BoxDecoration(
-                  color: Colors.amber.shade50,
-                  borderRadius: BorderRadius.circular(10),
-                  border: Border.all(color: Colors.amber.shade200),
-                ),
-                child: Row(
-                  children: [
-                    Icon(Icons.shield_outlined, color: Colors.amber.shade900, size: 20),
-                    const SizedBox(width: 10),
-                    Expanded(
-                      child: Text(
-                        'Classroom Projector Mode: QR rotates every 80s to prevent proxy sharing.',
-                        style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: Colors.amber.shade900),
+              // Logged-in Faculty Header Card
+              Card(
+                color: Colors.indigo.shade900,
+                elevation: 3,
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                child: Padding(
+                  padding: const EdgeInsets.all(16.0),
+                  child: Row(
+                    children: [
+                      CircleAvatar(
+                        radius: 26,
+                        backgroundColor: isCT ? Colors.amber : Colors.indigo.shade300,
+                        child: Icon(
+                          isCT ? Icons.stars_rounded : Icons.person_rounded,
+                          size: 32,
+                          color: isCT ? Colors.indigo.shade900 : Colors.white,
+                        ),
                       ),
-                    ),
-                  ],
+                      const SizedBox(width: 14),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              user?['full_name'] ?? 'Faculty Member',
+                              style: const TextStyle(color: Colors.white, fontSize: 17, fontWeight: FontWeight.bold),
+                            ),
+                            const SizedBox(height: 2),
+                            Text(
+                              user?['email'] ?? 'BVCOEK T.Y. CSE',
+                              style: TextStyle(color: Colors.indigo.shade200, fontSize: 13),
+                            ),
+                            if (isCT)
+                              Container(
+                                margin: const EdgeInsets.only(top: 6),
+                                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                                decoration: BoxDecoration(
+                                  color: Colors.amber,
+                                  borderRadius: BorderRadius.circular(8),
+                                ),
+                                child: const Text(
+                                  '🎓 Class Teacher (Defaulter & All-Student Access)',
+                                  style: TextStyle(color: Colors.black87, fontSize: 11, fontWeight: FontWeight.w800),
+                                ),
+                              ),
+                          ],
+                        ),
+                      ),
+                    ],
+                  ),
                 ),
               ),
+              const SizedBox(height: 16),
 
-              // Attendance Control Card
+              // Proximity GPS Sensor Status Card
+              Card(
+                elevation: 2,
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                  child: Row(
+                    children: [
+                      Icon(
+                        _currentTeacherPosition != null ? Icons.my_location_rounded : Icons.location_searching_rounded,
+                        color: _currentTeacherPosition != null ? Colors.green.shade600 : Colors.orange,
+                        size: 26,
+                      ),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            const Text(
+                              'Teacher Phone GPS Proximity (50m Radius)',
+                              style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13),
+                            ),
+                            Text(
+                              _locationStatus,
+                              style: TextStyle(
+                                fontSize: 12,
+                                color: _currentTeacherPosition != null ? Colors.green.shade700 : Colors.grey.shade600,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                      _isLocating
+                          ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2))
+                          : IconButton(
+                              icon: const Icon(Icons.refresh, size: 20),
+                              tooltip: 'Re-lock GPS',
+                              onPressed: _getTeacherLocation,
+                            )
+                    ],
+                  ),
+                ),
+              ),
+              const SizedBox(height: 16),
+
+              // Class Teacher Portal Shortcut Banner
+              if (isCT)
+                Card(
+                  color: Colors.amber.shade50,
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(12),
+                    side: BorderSide(color: Colors.amber.shade400, width: 1.5),
+                  ),
+                  child: ListTile(
+                    leading: const CircleAvatar(
+                      backgroundColor: Colors.amber,
+                      child: Icon(Icons.analytics_rounded, color: Colors.black87),
+                    ),
+                    title: const Text('Class Teacher Defaulter Portal (< 50%)', style: TextStyle(fontWeight: FontWeight.bold)),
+                    subtitle: const Text('View all 77 students, subject breakdowns & defaulters list.'),
+                    trailing: const Icon(Icons.arrow_forward_ios_rounded, size: 16, color: Colors.black54),
+                    onTap: _openClassTeacherPortal,
+                  ),
+                ),
+              if (isCT) const SizedBox(height: 16),
+
+              // Session Control & Rotating Dynamic QR Card
               Card(
                 elevation: 4,
                 shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
@@ -601,97 +785,49 @@ class _TeacherDashboardScreenState extends State<TeacherDashboardScreen> {
                   padding: const EdgeInsets.all(20.0),
                   child: Column(
                     children: [
-                      const Text(
-                        'Classroom Attendance Control',
-                        style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Colors.indigo),
-                      ),
-                      const SizedBox(height: 15),
                       if (!isSessionActive) ...[
-                        if (todaySlots.isNotEmpty) ...[
-                          Container(
-                            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 4),
-                            decoration: BoxDecoration(
-                              color: Colors.indigo.shade50,
-                              borderRadius: BorderRadius.circular(10),
-                              border: Border.all(color: Colors.indigo.shade200),
-                            ),
-                            child: DropdownButtonHideUnderline(
-                              child: DropdownButton<String>(
+                        const Text(
+                          'Select Assigned Lecture to Start Attendance',
+                          style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+                        ),
+                        const SizedBox(height: 12),
+                        todaySlots.isEmpty
+                            ? Container(
+                                padding: const EdgeInsets.all(12),
+                                decoration: BoxDecoration(
+                                  color: Colors.grey.shade100,
+                                  borderRadius: BorderRadius.circular(8),
+                                ),
+                                child: const Text(
+                                  'Loading your scheduled subject slots...',
+                                  style: TextStyle(color: Colors.grey),
+                                ),
+                              )
+                            : DropdownButtonFormField<Map<String, dynamic>>(
                                 isExpanded: true,
-                                value: selectedSlot?['id'],
-                                hint: const Text("Select Scheduled Lecture"),
-                                items: todaySlots.map<DropdownMenuItem<String>>((slot) {
-                                  return DropdownMenuItem<String>(
-                                    value: slot['id'] as String,
+                                value: selectedSlot,
+                                decoration: const InputDecoration(
+                                  labelText: 'My Scheduled Timetable Slot',
+                                  border: OutlineInputBorder(),
+                                  prefixIcon: Icon(Icons.calendar_today_rounded),
+                                ),
+                                items: todaySlots.map((slot) {
+                                  return DropdownMenuItem<Map<String, dynamic>>(
+                                    value: slot as Map<String, dynamic>,
                                     child: Text(
-                                      "${slot['subject_name']} (${slot['start_time']} - ${slot['end_time']}) • ${slot['room'] ?? 'LH2'}",
-                                      style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 13),
+                                      '${slot['day_of_week'] ?? ''} ${slot['start_time']}-${slot['end_time']}: ${slot['subject_name']} (${slot['room'] ?? 'LH2'})',
+                                      overflow: TextOverflow.ellipsis,
+                                      style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600),
                                     ),
                                   );
                                 }).toList(),
-                                onChanged: (val) {
+                                onChanged: (slot) {
                                   setState(() {
-                                    selectedSlot = todaySlots.firstWhere((s) => s['id'] == val) as Map<String, dynamic>;
+                                    selectedSlot = slot;
                                   });
                                 },
                               ),
-                            ),
-                          ),
-                          const SizedBox(height: 10),
-                        ],
-                        Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
-                          decoration: BoxDecoration(
-                            color: _currentTeacherPosition != null ? Colors.green.shade50 : Colors.amber.shade50,
-                            borderRadius: BorderRadius.circular(10),
-                            border: Border.all(
-                              color: _currentTeacherPosition != null ? Colors.green.shade300 : Colors.amber.shade300,
-                            ),
-                          ),
-                          child: Row(
-                            children: [
-                              Icon(
-                                _currentTeacherPosition != null ? Icons.my_location : Icons.location_searching,
-                                size: 22,
-                                color: _currentTeacherPosition != null ? Colors.green.shade800 : Colors.amber.shade900,
-                              ),
-                              const SizedBox(width: 10),
-                              Expanded(
-                                child: Column(
-                                  crossAxisAlignment: CrossAxisAlignment.start,
-                                  children: [
-                                    Text(
-                                      _currentTeacherPosition != null
-                                          ? "📍 Teacher Phone GPS: ${_currentTeacherPosition!.latitude.toStringAsFixed(5)}, ${_currentTeacherPosition!.longitude.toStringAsFixed(5)}"
-                                          : "📍 GPS Status: $_locationStatus",
-                                      style: TextStyle(
-                                        fontSize: 12,
-                                        fontWeight: FontWeight.bold,
-                                        color: _currentTeacherPosition != null ? Colors.green.shade900 : Colors.amber.shade900,
-                                      ),
-                                    ),
-                                    const Text(
-                                      "50m classroom boundary will be calculated from THIS device",
-                                      style: TextStyle(fontSize: 10.5, color: Colors.black54),
-                                    ),
-                                  ],
-                                ),
-                              ),
-                              IconButton(
-                                icon: _isLocating
-                                    ? const SizedBox(
-                                        width: 16,
-                                        height: 16,
-                                        child: CircularProgressIndicator(strokeWidth: 2),
-                                      )
-                                    : const Icon(Icons.refresh, size: 20),
-                                tooltip: "Re-detect GPS",
-                                onPressed: _isLocating ? null : _getTeacherLocation,
-                              ),
-                            ],
-                          ),
-                        ),
-                        const SizedBox(height: 15),
+                        const SizedBox(height: 20),
                         ElevatedButton.icon(
                           style: ElevatedButton.styleFrom(
                             backgroundColor: Colors.indigo,
@@ -741,26 +877,21 @@ class _TeacherDashboardScreenState extends State<TeacherDashboardScreen> {
                             ],
                           ),
                         ),
-                        Row(
-                          mainAxisAlignment: MainAxisAlignment.center,
-                          children: [
-                            ElevatedButton.icon(
-                              style: ElevatedButton.styleFrom(
-                                backgroundColor: Colors.red.shade600,
-                                padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
-                                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-                              ),
-                              onPressed: endSession,
-                              icon: const Icon(Icons.stop_rounded, color: Colors.white),
-                              label: const Text(
-                                'End Attendance Session',
-                                style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
-                              ),
-                            ),
-                          ],
+                        ElevatedButton.icon(
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: Colors.red.shade600,
+                            padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                          ),
+                          onPressed: endSession,
+                          icon: const Icon(Icons.stop_rounded, color: Colors.white),
+                          label: const Text(
+                            'End Attendance Session',
+                            style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
+                          ),
                         ),
                         const SizedBox(height: 20),
-                        // 40s Countdown indicator
+                        // 80s Dynamic rotating countdown timer
                         Container(
                           padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
                           decoration: BoxDecoration(
@@ -797,7 +928,7 @@ class _TeacherDashboardScreenState extends State<TeacherDashboardScreen> {
                           textAlign: TextAlign.center,
                         ),
                         const SizedBox(height: 15),
-                        // High resolution Projector QR Display
+                        // High resolution Classroom Projector QR Display
                         Container(
                           padding: const EdgeInsets.all(12),
                           decoration: BoxDecoration(
@@ -827,7 +958,7 @@ class _TeacherDashboardScreenState extends State<TeacherDashboardScreen> {
               ),
               const SizedBox(height: 24),
 
-              // Live Attendance Roster
+              // Live Attendance Roster with IST Time & Student Names
               Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
@@ -859,6 +990,11 @@ class _TeacherDashboardScreenState extends State<TeacherDashboardScreen> {
                       itemCount: attendanceList.length,
                       itemBuilder: (context, index) {
                         final record = attendanceList[index];
+                        final name = record['student_name'];
+                        final roll = record['roll_no'];
+                        final prn = record['prn'];
+                        final time = record['time_only'] ?? record['timestamp'] ?? '';
+
                         return Card(
                           margin: const EdgeInsets.symmetric(vertical: 6),
                           elevation: 1,
@@ -868,8 +1004,14 @@ class _TeacherDashboardScreenState extends State<TeacherDashboardScreen> {
                               backgroundColor: Colors.green,
                               child: Icon(Icons.check, color: Colors.white),
                             ),
-                            title: Text('PRN: ${record['prn']}', style: const TextStyle(fontWeight: FontWeight.bold)),
-                            subtitle: Text('Recorded: ${record['timestamp']}'),
+                            title: Text(
+                              (name != null && name.toString().isNotEmpty) ? name.toString() : 'PRN: $prn',
+                              style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 15),
+                            ),
+                            subtitle: Text(
+                              'Roll: ${roll ?? '-'} | PRN: $prn\nTime (IST): $time',
+                              style: const TextStyle(fontSize: 12),
+                            ),
                             trailing: Container(
                               padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
                               decoration: BoxDecoration(
@@ -889,6 +1031,495 @@ class _TeacherDashboardScreenState extends State<TeacherDashboardScreen> {
           ),
         ),
       ),
+    );
+  }
+}
+
+// -------------------------------------------------------------
+// CLASS TEACHER PORTAL & DEFAULTER ANALYSIS SCREEN (<50%)
+// -------------------------------------------------------------
+class ClassTeacherPortalScreen extends StatefulWidget {
+  const ClassTeacherPortalScreen({super.key});
+
+  @override
+  State<ClassTeacherPortalScreen> createState() => _ClassTeacherPortalScreenState();
+}
+
+class _ClassTeacherPortalScreenState extends State<ClassTeacherPortalScreen> with SingleTickerProviderStateMixin {
+  late TabController _tabController;
+  bool _isLoading = true;
+  String? _errorMessage;
+
+  Map<String, dynamic>? _dashboardData;
+  List<dynamic> _allStudents = [];
+  List<dynamic> _defaulters = [];
+  List<dynamic> _filteredStudents = [];
+  List<dynamic> _filteredDefaulters = [];
+  final TextEditingController _searchController = TextEditingController();
+
+  @override
+  void initState() {
+    super.initState();
+    _tabController = TabController(length: 2, vsync: this);
+    _fetchClassTeacherData();
+  }
+
+  @override
+  void dispose() {
+    _tabController.dispose();
+    _searchController.dispose();
+    super.dispose();
+  }
+
+  Future<void> _fetchClassTeacherData() async {
+    setState(() {
+      _isLoading = true;
+      _errorMessage = null;
+    });
+
+    try {
+      final response = await http.get(
+        Uri.parse('${AppConfig.baseUrl}/api/class-teacher/dashboard-data'),
+      ).timeout(const Duration(seconds: 40));
+
+      if (response.statusCode == 200) {
+        final data = jsonDecode(response.body);
+        setState(() {
+          _dashboardData = data;
+          _allStudents = data['students'] ?? [];
+          _defaulters = data['defaulters'] ?? [];
+          _applySearch();
+          _isLoading = false;
+        });
+      } else {
+        setState(() {
+          _errorMessage = 'Failed to load class teacher analysis.';
+          _isLoading = false;
+        });
+      }
+    } catch (e) {
+      setState(() {
+        _errorMessage = 'Error connecting to backend server.';
+        _isLoading = false;
+      });
+    }
+  }
+
+  void _applySearch() {
+    final query = _searchController.text.trim().toLowerCase();
+    if (query.isEmpty) {
+      _filteredStudents = List.from(_allStudents);
+      _filteredDefaulters = List.from(_defaulters);
+    } else {
+      _filteredStudents = _allStudents.where((st) {
+        final name = (st['full_name'] ?? '').toString().toLowerCase();
+        final prn = (st['prn'] ?? '').toString().toLowerCase();
+        final roll = (st['roll_no'] ?? '').toString().toLowerCase();
+        return name.contains(query) || prn.contains(query) || roll.contains(query);
+      }).toList();
+
+      _filteredDefaulters = _defaulters.where((st) {
+        final name = (st['full_name'] ?? '').toString().toLowerCase();
+        final prn = (st['prn'] ?? '').toString().toLowerCase();
+        final roll = (st['roll_no'] ?? '').toString().toLowerCase();
+        return name.contains(query) || prn.contains(query) || roll.contains(query);
+      }).toList();
+    }
+  }
+
+  void _showStudentDetail(dynamic student) {
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (context) {
+        final bool isDef = student['is_defaulter'] ?? false;
+        final subBreakdown = student['subject_breakdown'] as List<dynamic>? ?? [];
+
+        return DraggableScrollableSheet(
+          expand: false,
+          initialChildSize: 0.75,
+          maxChildSize: 0.95,
+          minChildSize: 0.5,
+          builder: (context, scrollController) {
+            return SingleChildScrollView(
+              controller: scrollController,
+              padding: const EdgeInsets.all(20.0),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Center(
+                    child: Container(
+                      width: 40,
+                      height: 5,
+                      margin: const EdgeInsets.only(bottom: 16),
+                      decoration: BoxDecoration(
+                        color: Colors.grey.shade300,
+                        borderRadius: BorderRadius.circular(10),
+                      ),
+                    ),
+                  ),
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              student['full_name'] ?? 'Student',
+                              style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+                            ),
+                            Text(
+                              'Roll: ${student['roll_no'] ?? '-'} | PRN: ${student['prn']}',
+                              style: TextStyle(color: Colors.grey.shade600, fontSize: 13),
+                            ),
+                          ],
+                        ),
+                      ),
+                      Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                        decoration: BoxDecoration(
+                          color: isDef ? Colors.red.shade100 : Colors.green.shade100,
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                        child: Text(
+                          isDef ? '🚨 Defaulter (<50%)' : '✅ Good Standing',
+                          style: TextStyle(
+                            color: isDef ? Colors.red.shade900 : Colors.green.shade900,
+                            fontWeight: FontWeight.bold,
+                            fontSize: 12,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 16),
+
+                  // Overall card
+                  Container(
+                    padding: const EdgeInsets.all(16),
+                    decoration: BoxDecoration(
+                      color: isDef ? Colors.red.shade50 : Colors.indigo.shade50,
+                      borderRadius: BorderRadius.circular(12),
+                      border: Border.all(color: isDef ? Colors.red.shade200 : Colors.indigo.shade200),
+                    ),
+                    child: Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceAround,
+                      children: [
+                        Column(
+                          children: [
+                            const Text('Overall Attendance', style: TextStyle(fontSize: 12, color: Colors.grey)),
+                            const SizedBox(height: 4),
+                            Text(
+                              '${student['percentage']}%',
+                              style: TextStyle(
+                                fontSize: 24,
+                                fontWeight: FontWeight.bold,
+                                color: isDef ? Colors.red.shade700 : Colors.indigo.shade900,
+                              ),
+                            ),
+                          ],
+                        ),
+                        Column(
+                          children: [
+                            const Text('Attended / Total', style: TextStyle(fontSize: 12, color: Colors.grey)),
+                            const SizedBox(height: 4),
+                            Text(
+                              '${student['total_attended']} / ${student['total_conducted']}',
+                              style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
+                            ),
+                          ],
+                        ),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(height: 20),
+
+                  const Text(
+                    '📚 Subject-wise Attendance Breakdown',
+                    style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Colors.indigo),
+                  ),
+                  const SizedBox(height: 10),
+
+                  if (subBreakdown.isEmpty)
+                    const Text('No subject breakdown available.', style: TextStyle(color: Colors.grey))
+                  else
+                    ListView.builder(
+                      shrinkWrap: true,
+                      physics: const NeverScrollableScrollPhysics(),
+                      itemCount: subBreakdown.length,
+                      itemBuilder: (context, idx) {
+                        final sub = subBreakdown[idx];
+                        final bool subDef = sub['is_defaulter'] ?? false;
+                        return Container(
+                          margin: const EdgeInsets.symmetric(vertical: 4),
+                          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                          decoration: BoxDecoration(
+                            color: Colors.white,
+                            borderRadius: BorderRadius.circular(8),
+                            border: Border.all(color: Colors.grey.shade200),
+                          ),
+                          child: Row(
+                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                            children: [
+                              Expanded(
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Text(
+                                      sub['name'] ?? '',
+                                      style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13),
+                                    ),
+                                    Text(
+                                      'Code: ${sub['code']} | Attended: ${sub['attended']}/${sub['conducted']}',
+                                      style: const TextStyle(fontSize: 11, color: Colors.grey),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                              Container(
+                                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                                decoration: BoxDecoration(
+                                  color: subDef ? Colors.red.shade50 : Colors.green.shade50,
+                                  borderRadius: BorderRadius.circular(10),
+                                  border: Border.all(color: subDef ? Colors.red.shade300 : Colors.green.shade300),
+                                ),
+                                child: Text(
+                                  '${sub['percentage']}%',
+                                  style: TextStyle(
+                                    fontWeight: FontWeight.bold,
+                                    fontSize: 13,
+                                    color: subDef ? Colors.red.shade700 : Colors.green.shade800,
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
+                        );
+                      },
+                    ),
+                ],
+              ),
+            );
+          },
+        );
+      },
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(
+        title: Text(_dashboardData != null ? '${_dashboardData!['class_name']} Defaulters (<50%)' : 'Class Teacher Defaulter Portal'),
+        bottom: TabBar(
+          controller: _tabController,
+          labelColor: Colors.white,
+          unselectedLabelColor: Colors.indigo.shade200,
+          indicatorColor: Colors.amber,
+          indicatorWeight: 3,
+          tabs: [
+            Tab(
+              icon: const Icon(Icons.warning_amber_rounded),
+              text: '🚨 Defaulters (<50%) (${_defaulters.length})',
+            ),
+            Tab(
+              icon: const Icon(Icons.groups_rounded),
+              text: '👥 All Students (${_allStudents.length})',
+            ),
+          ],
+        ),
+      ),
+      body: _isLoading
+          ? const Center(child: CircularProgressIndicator())
+          : _errorMessage != null
+              ? Center(
+                  child: Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      Text(_errorMessage!, style: const TextStyle(color: Colors.red)),
+                      const SizedBox(height: 12),
+                      ElevatedButton(onPressed: _fetchClassTeacherData, child: const Text('Retry')),
+                    ],
+                  ),
+                )
+              : Column(
+                  children: [
+                    // Quick Search Bar
+                    Padding(
+                      padding: const EdgeInsets.all(12.0),
+                      child: TextField(
+                        controller: _searchController,
+                        onChanged: (val) {
+                          setState(() {
+                            _applySearch();
+                          });
+                        },
+                        decoration: InputDecoration(
+                          hintText: 'Search by PRN, Roll No, or Student Name...',
+                          prefixIcon: const Icon(Icons.search),
+                          suffixIcon: _searchController.text.isNotEmpty
+                              ? IconButton(
+                                  icon: const Icon(Icons.clear),
+                                  onPressed: () {
+                                    _searchController.clear();
+                                    setState(() {
+                                      _applySearch();
+                                    });
+                                  },
+                                )
+                              : null,
+                          contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+                          border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
+                          fillColor: Colors.white,
+                          filled: true,
+                        ),
+                      ),
+                    ),
+
+                    Expanded(
+                      child: TabBarView(
+                        controller: _tabController,
+                        children: [
+                          // Tab 1: Defaulters List (< 50%)
+                          _filteredDefaulters.isEmpty
+                              ? Center(
+                                  child: Padding(
+                                    padding: const EdgeInsets.all(24.0),
+                                    child: Column(
+                                      mainAxisAlignment: MainAxisAlignment.center,
+                                      children: const [
+                                        Icon(Icons.check_circle_outline_rounded, size: 56, color: Colors.green),
+                                        SizedBox(height: 12),
+                                        Text(
+                                          'No students below 50% attendance!',
+                                          style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16, color: Colors.green),
+                                        ),
+                                      ],
+                                    ),
+                                  ),
+                                )
+                              : ListView.builder(
+                                  padding: const EdgeInsets.symmetric(horizontal: 12),
+                                  itemCount: _filteredDefaulters.length,
+                                  itemBuilder: (context, index) {
+                                    final student = _filteredDefaulters[index];
+                                    return Card(
+                                      margin: const EdgeInsets.symmetric(vertical: 4),
+                                      elevation: 1,
+                                      shape: RoundedRectangleBorder(
+                                        borderRadius: BorderRadius.circular(10),
+                                        side: BorderSide(color: Colors.red.shade200),
+                                      ),
+                                      child: ListTile(
+                                        leading: CircleAvatar(
+                                          backgroundColor: Colors.red.shade100,
+                                          child: Text(
+                                            '${student['roll_no'] ?? '-'}',
+                                            style: TextStyle(
+                                              fontWeight: FontWeight.bold,
+                                              color: Colors.red.shade900,
+                                              fontSize: 12,
+                                            ),
+                                          ),
+                                        ),
+                                        title: Text(
+                                          student['full_name'] ?? 'Student',
+                                          style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14),
+                                        ),
+                                        subtitle: Text(
+                                          'PRN: ${student['prn']} | Attended: ${student['total_attended']}/${student['total_conducted']}',
+                                          style: const TextStyle(fontSize: 12),
+                                        ),
+                                        trailing: Column(
+                                          mainAxisAlignment: MainAxisAlignment.center,
+                                          crossAxisAlignment: CrossAxisAlignment.end,
+                                          children: [
+                                            Text(
+                                              '${student['percentage']}%',
+                                              style: TextStyle(
+                                                fontWeight: FontWeight.w800,
+                                                color: Colors.red.shade700,
+                                                fontSize: 16,
+                                              ),
+                                            ),
+                                            const Text('Defaulter', style: TextStyle(color: Colors.red, fontSize: 10)),
+                                          ],
+                                        ),
+                                        onTap: () => _showStudentDetail(student),
+                                      ),
+                                    );
+                                  },
+                                ),
+
+                          // Tab 2: All 77 Students
+                          _filteredStudents.isEmpty
+                              ? const Center(child: Text('No students match query.'))
+                              : ListView.builder(
+                                  padding: const EdgeInsets.symmetric(horizontal: 12),
+                                  itemCount: _filteredStudents.length,
+                                  itemBuilder: (context, index) {
+                                    final student = _filteredStudents[index];
+                                    final bool isDef = student['is_defaulter'] ?? false;
+                                    return Card(
+                                      margin: const EdgeInsets.symmetric(vertical: 4),
+                                      elevation: 1,
+                                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                                      child: ListTile(
+                                        leading: CircleAvatar(
+                                          backgroundColor: isDef ? Colors.red.shade100 : Colors.indigo.shade100,
+                                          child: Text(
+                                            '${student['roll_no'] ?? '-'}',
+                                            style: TextStyle(
+                                              fontWeight: FontWeight.bold,
+                                              color: isDef ? Colors.red.shade900 : Colors.indigo.shade900,
+                                              fontSize: 12,
+                                            ),
+                                          ),
+                                        ),
+                                        title: Text(
+                                          student['full_name'] ?? 'Student',
+                                          style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14),
+                                        ),
+                                        subtitle: Text(
+                                          'PRN: ${student['prn']} | Attended: ${student['total_attended']}/${student['total_conducted']}',
+                                          style: const TextStyle(fontSize: 12),
+                                        ),
+                                        trailing: Column(
+                                          mainAxisAlignment: MainAxisAlignment.center,
+                                          crossAxisAlignment: CrossAxisAlignment.end,
+                                          children: [
+                                            Text(
+                                              '${student['percentage']}%',
+                                              style: TextStyle(
+                                                fontWeight: FontWeight.bold,
+                                                color: isDef ? Colors.red.shade700 : Colors.green.shade800,
+                                                fontSize: 15,
+                                              ),
+                                            ),
+                                            Text(
+                                              isDef ? 'Defaulter' : 'Clear',
+                                              style: TextStyle(
+                                                color: isDef ? Colors.red : Colors.green,
+                                                fontSize: 10,
+                                                fontWeight: FontWeight.bold,
+                                              ),
+                                            ),
+                                          ],
+                                        ),
+                                        onTap: () => _showStudentDetail(student),
+                                      ),
+                                    );
+                                  },
+                                ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
     );
   }
 }

@@ -7,7 +7,7 @@ from datetime import datetime
 from openpyxl import Workbook
 from openpyxl.styles import Font, PatternFill, Alignment
 
-from models import db, College, GeofenceConfig, AcademicClass, StudentProfile, LectureSession, AttendanceRecord, ProxyRiskLog
+from models import db, College, GeofenceConfig, AcademicClass, StudentProfile, LectureSession, AttendanceRecord, ProxyRiskLog, get_ist_now
 
 class GeoService:
     @staticmethod
@@ -273,7 +273,7 @@ class AttendanceService:
                 distance_meters=distance,
                 accuracy_meters=accuracy or 10.0,
                 status='PRESENT',
-                timestamp=datetime.utcnow()
+                timestamp=get_ist_now()
             )
             db.session.add(record)
             db.session.commit()

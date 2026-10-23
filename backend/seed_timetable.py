@@ -83,20 +83,46 @@ def run():
                 db.session.add(user)
                 db.session.flush()
 
+            designation = "Assistant Professor & Class Teacher" if ("Upadhye" in fac_name or code == "OOMD") else "Professor / Faculty"
             if not user.teacher_profile:
                 t_prof = TeacherProfile(
                     user_id=user.id,
                     college_id=college.id,
                     department_id=dept.id,
                     employee_id=f"FAC-{code}",
-                    designation="Professor / Faculty"
+                    designation=designation
                 )
                 db.session.add(t_prof)
                 db.session.flush()
             else:
                 t_prof = user.teacher_profile
+                t_prof.designation = designation
 
             teacher_map[code] = t_prof
+
+        # Ensure upadhye@bvcoek.edu.in exists as Class Teacher
+        up_user = User.query.filter_by(email="upadhye@bvcoek.edu.in").first()
+        if not up_user:
+            up_user = User(
+                college_id=college.id,
+                email="upadhye@bvcoek.edu.in",
+                full_name="Mr. V. A. Upadhye",
+                role="TEACHER"
+            )
+            up_user.password_hash = default_teacher_pw
+            db.session.add(up_user)
+            db.session.flush()
+            up_prof = TeacherProfile(
+                user_id=up_user.id,
+                college_id=college.id,
+                department_id=dept.id,
+                employee_id="FAC-OOMD-BVCOEK",
+                designation="Assistant Professor & Class Teacher"
+            )
+            db.session.add(up_prof)
+            db.session.flush()
+        elif up_user.teacher_profile:
+            up_user.teacher_profile.designation = "Assistant Professor & Class Teacher"
 
             # Subject
             sub = Subject.query.filter_by(college_id=college.id, name=name).first()
